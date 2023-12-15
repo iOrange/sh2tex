@@ -40,6 +40,7 @@ public:
     void        UpdateStatusBar();
 
     void        ExportTexture(const SH2Texture* texture, const fs::path& path);
+    void        ExportAllTextures(const fs::path& dstFolder);
     void        ImportTexture(const fs::path& path, const int idx);
 
 private slots:

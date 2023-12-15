@@ -432,6 +432,17 @@ void MainWindow::ExportTexture(const SH2Texture* texture, const fs::path& path) 
     dds.SaveToFile(path);
 }
 
+void MainWindow::ExportAllTextures(const fs::path& dstFolder) {
+    fs::path nameNoExtension = mLastPath.stem();
+    for (size_t i = 0; i < mTexturesContainer->GetNumTextures(); ++i) {
+        fs::path finalPath = dstFolder / nameNoExtension;
+        finalPath += "_";
+        finalPath += std::to_string(i);
+        finalPath += ".dds";
+        this->ExportTexture(mTexturesContainer->GetTexture(i), finalPath);
+    }
+}
+
 void MainWindow::ImportTexture(const fs::path& path, const int idx) {
     if (!mTexturesContainer || idx < 0 || idx >= mTexturesContainer->GetNumTextures()) {
         return;
@@ -561,13 +572,18 @@ void MainWindow::on_listTextures_customContextMenuRequested(const QPoint &pos) {
         const SH2Texture* texture = mTexturesContainer->GetTexture(idx);
 
         QAction exportTexture(tr("Export texture..."));
+        QAction exportAllTextures(tr("Export all textures..."));
         QAction replaceTexture(tr("Replace texture..."));
 
         if (texture->IsPS2File()) {
             replaceTexture.setEnabled(false);
         }
 
+        exportAllTextures.setEnabled(mTexturesContainer->GetNumTextures() > 1);
+
         contextMenu.addAction(&exportTexture);
+        contextMenu.addSeparator();
+        contextMenu.addAction(&exportAllTextures);
         contextMenu.addSeparator();
         contextMenu.addAction(&replaceTexture);
 
@@ -593,6 +609,11 @@ void MainWindow::on_listTextures_customContextMenuRequested(const QPoint &pos) {
             QString fileName = QFileDialog::getSaveFileName(this, tr("Where to save DDS file"), startPath, tr("DDS texture (*.dds)"));
             if (!fileName.isEmpty()) {
                 this->ExportTexture(texture, fileName.toStdWString());
+            }
+        } else if (selectedAction == &exportAllTextures) {
+            QString folderName = QFileDialog::getExistingDirectory(this, tr("Where to save all textures"), this->GetLastPathFolder());
+            if (!folderName.isEmpty()) {
+                this->ExportAllTextures(folderName.toStdWString());
             }
         } else if (selectedAction == &replaceTexture) {
             QString folder = this->GetLastPathFolder();
