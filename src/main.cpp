@@ -13,9 +13,9 @@ int main(int argc, char *argv[]) {
     w.show();
 
     if (argc > 1) {
-        fs::path mdlPath = argv[1];
-        if (mdlPath.extension() == ".tex" || mdlPath.extension() == ".tbn2") {
-            w.LoadTextureFromFile(mdlPath, true);
+        fs::path filePath = argv[1];
+        if (filePath.extension() == ".tex" || filePath.extension() == ".tbn2" || filePath.extension() == "*.map" || filePath.extension() == "*.mdl") {
+            w.LoadTextureFromFile(filePath, true);
         }
     }
 
