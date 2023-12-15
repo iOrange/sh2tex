@@ -1,0 +1,6 @@
+<RCC>
+    <qresource prefix="/">
+        <file>maria.png</file>
+        <file>maria_icon.ico</file>
+    </qresource>
+</RCC>

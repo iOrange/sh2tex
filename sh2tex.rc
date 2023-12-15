@@ -1,0 +1,35 @@
+IDI_ICON1               ICON    "maria_icon.ico"
+
+1 VERSIONINFO
+ FILEVERSION 0,99
+ PRODUCTVERSION 0,99
+ FILEFLAGSMASK 0x3fL
+#ifdef _DEBUG
+ FILEFLAGS 0x1L
+#else
+ FILEFLAGS 0x0L
+#endif
+ FILEOS 0x40004L
+ FILETYPE 0x1L
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904b0"
+        BEGIN
+            VALUE "CompanyName", "iOrange"
+            VALUE "FileDescription", "SH2TEX Textures Explorer"
+            VALUE "FileVersion", 0,99
+            VALUE "InternalName", "sh2tex.exe"
+            VALUE "LegalCopyright", "Copyright (C) 2023"
+            VALUE "OriginalFilename", "sh2tex.exe"
+            VALUE "ProductName", "SH2TEX"
+            VALUE "ProductVersion", "0.99"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END
+
