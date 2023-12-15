@@ -28,12 +28,18 @@ public:
     size_t      GetImageHeight() const;
     void        ShowTransparency(const bool toShow);
 
+    void        ZoomDown(int step = 0);
+    void        ZoomUp(int step = 0);
+    int         GetZoom() const;
+    void        ResetZoom();
+
 protected:
     void        mouseMoveEvent(QMouseEvent* ev) override;
     void        mousePressEvent(QMouseEvent* ev) override;
     void        mouseReleaseEvent(QMouseEvent* ev) override;
 
 private:
+    void        ResizeWithZoom();
     void        ResetScroll();
 
 private:
@@ -45,4 +51,6 @@ private:
     bool        mImagePremultiplied;
     bool        mLMBDown;
     QPoint      mLastMPos;
+    QSize       mOriginalSizeDPICorrected;
+    int         mZoom;  // in %
 };

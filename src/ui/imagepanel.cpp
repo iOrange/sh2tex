@@ -5,6 +5,11 @@
 #include <QScrollBar>
 #include <QApplication>
 
+constexpr int kMinZoom = 10;    // x 0.1
+constexpr int kMaxZoom = 500;   // x 5
+constexpr int kDownStep = 10;   // 0.1
+constexpr int kUpStep =   25;   // 0.25
+
 
 MyLabel::MyLabel(QWidget* parent, Qt::WindowFlags f) : QLabel(parent, f) {}
 
@@ -31,6 +36,7 @@ ImagePanel::ImagePanel(QWidget* parent)
     , mImagePremultiplied(false)
     , mLMBDown(false)
     , mLastMPos(0, 0)
+    , mZoom(100)
 {
     mImageLabel = new MyLabel();
     mImageLabel->setBackgroundRole(QPalette::Base);
@@ -71,6 +77,7 @@ void ImagePanel::SetImage(const void* pixelsRGBA, const size_t width, const size
         mImagePremultiplied = false;
     }
 
+    mZoom = 100;
     this->ShowTransparency(mTransparency);
     this->ResetScroll();
 }
@@ -99,13 +106,56 @@ void ImagePanel::ShowTransparency(const bool toShow) {
         QImage newImage(rcast<const uchar*>(mImageData.data()), mImageWidth, mImageHeight, format);
         const qreal f = this->devicePixelRatio();
         mImageLabel->setPixmap(QPixmap::fromImage(newImage));
-        mImageLabel->resize(mImageWidth / f, mImageHeight / f);
+        mOriginalSizeDPICorrected.setWidth(mImageWidth / f);
+        mOriginalSizeDPICorrected.setHeight(mImageHeight / f);
+        this->ResizeWithZoom();
     } else {
         mImageLabel->resize(1, 1);
         mImageLabel->setPixmap(QPixmap());
     }
 
     mTransparency = toShow;
+}
+
+void ImagePanel::ZoomDown(int step) {
+    if (mZoom <= kMinZoom) {
+        return;
+    }
+
+    if (!step)
+    {
+        step = (mZoom > 100) ? kUpStep : kDownStep;
+    }
+
+    mZoom -= step;
+    this->ResizeWithZoom();
+}
+
+void ImagePanel::ZoomUp(int step) {
+    if (mZoom >= kMaxZoom) {
+        return;
+    }
+
+    if (!step)
+    {
+        step = (mZoom < 100) ? kDownStep : kUpStep;
+    }
+
+    mZoom += step;
+    this->ResizeWithZoom();
+}
+
+int ImagePanel::GetZoom() const {
+    return mZoom;
+}
+
+void ImagePanel::ResetZoom() {
+    if (mZoom == 100) {
+        return;
+    }
+
+    mZoom = 100;
+    this->ResizeWithZoom();
 }
 
 // my own events
@@ -157,6 +207,12 @@ void ImagePanel::mouseReleaseEvent(QMouseEvent* ev) {
     }
 
     ev->accept();
+}
+
+void ImagePanel::ResizeWithZoom() {
+    if (!mImageData.empty()) {
+        mImageLabel->resize(mOriginalSizeDPICorrected.width() * scast<float>(mZoom) / 100.0f, mOriginalSizeDPICorrected.height() * scast<float>(mZoom) / 100.0f);
+    }
 }
 
 void ImagePanel::ResetScroll() {

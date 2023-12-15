@@ -25,6 +25,7 @@ public:
 protected:
     void        dragEnterEvent(QDragEnterEvent* event) override;
     void        dropEvent(QDropEvent* event) override;
+    bool        eventFilter(QObject* obj, QEvent* event) override;
 
 public:
     int         GetSelectedTextureIdx() const;
@@ -36,6 +37,7 @@ public:
     QStringList GetRecentTexturesList() const;
     void        AddToRecentTexturesList(const QString& entry);
     void        UpdateRecentTexturesList();
+    void        UpdateStatusBar();
 
     void        ExportTexture(const SH2Texture* texture, const fs::path& path);
     void        ImportTexture(const fs::path& path, const int idx);

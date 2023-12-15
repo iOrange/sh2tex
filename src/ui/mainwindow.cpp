@@ -15,6 +15,7 @@
 #include <QMimeData>
 #include <QFileDialog>
 #include <QMessageBox>
+#include <QKeyEvent>
 
 // makes path to have consistent separators '/'
 static fs::path FixPath(const fs::path& pathToFix) {
@@ -64,6 +65,9 @@ MainWindow::MainWindow(QWidget *parent)
 {
     ui->setupUi(this);
     setAcceptDrops(true);
+    setFocusPolicy(Qt::StrongFocus);
+
+    ui->imagePanel->installEventFilter(this);
 
     mOriginalTitle = this->windowTitle();
 
@@ -107,6 +111,26 @@ void MainWindow::dropEvent(QDropEvent* event) {
             event->acceptProposedAction();
         }
     }
+}
+
+bool MainWindow::eventFilter(QObject* obj, QEvent* event) {
+    if (mTexturesContainer && event->type() == QEvent::KeyPress) {
+        QKeyEvent* keyEvent = scast<QKeyEvent*>(event);
+        const int key = keyEvent->key();
+        const Qt::KeyboardModifiers mods = keyEvent->modifiers();
+
+        if ((key == Qt::Key_Plus || key == Qt::Key_Minus) && mods.testFlag(Qt::ControlModifier)) {
+            if (key == Qt::Key_Plus) {
+                ui->imagePanel->ZoomUp();
+            } else {
+                ui->imagePanel->ZoomDown();
+            }
+            this->UpdateStatusBar();
+            return true;
+        }
+    }
+
+    return QMainWindow::eventFilter(obj, event);
 }
 
 int MainWindow::GetSelectedTextureIdx() const {
@@ -343,6 +367,27 @@ void MainWindow::UpdateRecentTexturesList() {
     }
 }
 
+void MainWindow::UpdateStatusBar() {
+    if(mTexturesContainer) {
+        const int idx = this->GetSelectedTextureIdx();
+        if (idx >= 0 && idx < mTexturesContainer->GetNumTextures()) {
+            const SH2Texture* texture = mTexturesContainer->GetTexture(idx);
+
+            const uint32_t width = texture->GetWidth();
+            const uint32_t height = texture->GetHeight();
+
+            QString formatName = SH2FormatToString(texture->GetFormat());
+
+            const int zoom = ui->imagePanel->GetZoom();
+
+            mStatusLabel->setText(QString("Selected texture - id: %1, size: %2x%3, format: %4,  zoom: %5%").arg(texture->GetID()).arg(width).arg(height).arg(formatName).arg(zoom));
+            return;
+        }
+    }
+
+    mStatusLabel->setText(QString());
+}
+
 void MainWindow::ExportTexture(const SH2Texture* texture, const fs::path& path) {
     DDSTexture dds;
 
@@ -504,7 +549,7 @@ void MainWindow::on_listTextures_itemSelectionChanged() {
             ui->listProperties->addTopLevelItem(ps2FileItem);
         }
 
-        mStatusLabel->setText(QString("Selected texture - id: %1, size: %2x%3, format: %4").arg(texture->GetID()).arg(width).arg(height).arg(formatName));
+        this->UpdateStatusBar();
     }
 }
 

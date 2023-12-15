@@ -1,3 +1,6 @@
+// I got this code from here, it does all the magic!
+// https://ps2linux.no-ip.info/playstation2-linux.com/projects/ezswizzle/index.html
+
 unsigned int gsmem[1024 * 1024];
 
 int block32[32] =
