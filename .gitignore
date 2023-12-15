@@ -53,5 +53,8 @@ compile_commands.json
 
 *_qmlcache.qrc
 
+# visual studio
+/.vs
+
 /out
 /_build
