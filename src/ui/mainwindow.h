@@ -43,6 +43,8 @@ public:
     void        ExportAllTextures(const fs::path& dstFolder);
     void        ImportTexture(const fs::path& path, const int idx);
 
+    void        SetDarkTheme(const bool isDark);
+
 private slots:
     void        on_action_Open_triggered();
     void        on_action_Save_triggered();
@@ -51,6 +53,7 @@ private slots:
     void        on_listTextures_itemSelectionChanged();
     void        on_listTextures_customContextMenuRequested(const QPoint &pos);
     void        on_actionShow_transparency_triggered();
+    void        on_actionDark_theme_triggered();
     void        on_actionAbout_triggered();
 
 private:
@@ -61,5 +64,10 @@ private:
     RefPtr<SH2Map>              mMap;
     RefPtr<SH2Model>            mModel;
     fs::path                    mLastPath;
+
+    // 
+    QPalette                    mOriginalPalette;
+    QString                     mOriginalStyleSheet;
+    QString                     mOriginalStyleName;
 };
 #endif // MAINWINDOW_H

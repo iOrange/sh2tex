@@ -16,6 +16,13 @@
 #include <QFileDialog>
 #include <QMessageBox>
 #include <QKeyEvent>
+#include <QStyleFactory>
+
+#ifdef _WIN32
+#include <dwmapi.h>
+#pragma comment(lib, "dwmapi.lib")
+#endif
+
 
 // makes path to have consistent separators '/'
 static fs::path FixPath(const fs::path& pathToFix) {
@@ -32,6 +39,7 @@ static fs::path FixPath(const fs::path& pathToFix) {
 static const QString kLastOpenPath("LastOpenPath");
 static const QString kLastSavePath("LastSavePath");
 static const QString kRecentTextureTemplate("RecentTexture_");
+static const QString kDarkThemeValue("DarkThemeEnabled");
 
 constexpr size_t kMaxRecentTextures = 10;
 
@@ -57,6 +65,11 @@ static bool IsAcceptedExtension(const QString& path) {
            pathLower.endsWith(".mdl");
 }
 
+static bool WindowsIsInDarkTheme() {
+    QSettings settings("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize", QSettings::NativeFormat);
+    return settings.value("AppsUseLightTheme", 1).toInt() == 0;
+}
+
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
@@ -78,6 +91,19 @@ MainWindow::MainWindow(QWidget *parent)
     ui->listProperties->headerItem()->setText(1, tr("Value"));
 
     this->UpdateRecentTexturesList();
+
+    mOriginalPalette = qApp->palette();
+    mOriginalStyleSheet = qApp->styleSheet();
+    mOriginalStyleName = qApp->style()->name();
+
+    QSettings registry;
+    QString isDarkEnabled = registry.value(kDarkThemeValue).toString();
+    const bool isDark = isDarkEnabled.isEmpty() ? false : (isDarkEnabled.at(0) == '1');
+
+    if (WindowsIsInDarkTheme() || isDark) {
+        ui->actionDark_theme->setChecked(true);
+        this->SetDarkTheme(true);
+    }
 }
 
 MainWindow::~MainWindow() {
@@ -476,6 +502,77 @@ void MainWindow::ImportTexture(const fs::path& path, const int idx) {
     this->OnTextureLoaded(idx);
 }
 
+void MainWindow::SetDarkTheme(const bool isDark) {
+    if (isDark) {
+        qApp->setStyle("Fusion");
+        QPalette darkPalette;
+        QColor textColor = QColor(214, 214, 214);
+        QColor darkColor = QColor(45, 45, 45);
+        QColor disabledColor = QColor(127, 127, 127);
+        darkPalette.setColor(QPalette::Window, darkColor);
+        darkPalette.setColor(QPalette::WindowText, textColor);
+        darkPalette.setColor(QPalette::Base, QColor(18, 18, 18));
+        darkPalette.setColor(QPalette::AlternateBase, darkColor);
+        darkPalette.setColor(QPalette::ToolTipBase, textColor);
+        darkPalette.setColor(QPalette::ToolTipText, textColor);
+        darkPalette.setColor(QPalette::Text, textColor);
+        darkPalette.setColor(QPalette::Disabled, QPalette::Text, disabledColor);
+        darkPalette.setColor(QPalette::Button, darkColor);
+        darkPalette.setColor(QPalette::ButtonText, textColor);
+        darkPalette.setColor(QPalette::Disabled, QPalette::ButtonText, disabledColor);
+        darkPalette.setColor(QPalette::BrightText, Qt::red);
+        darkPalette.setColor(QPalette::Link, QColor(42, 130, 218));
+
+        darkPalette.setColor(QPalette::Highlight, QColor(42, 130, 218));
+        darkPalette.setColor(QPalette::HighlightedText, Qt::black);
+        darkPalette.setColor(QPalette::Disabled, QPalette::HighlightedText, disabledColor);
+
+        qApp->setPalette(darkPalette);
+
+        qApp->setStyleSheet("QToolTip { color: #d6d6d6; background-color: #2e2e2e; border: 1px solid #151515; }");
+
+        // so, this works nicele if called BEFORE the window is shown, and I still don't know what should I call
+        // for it to have an effect AFTER the window is called
+#ifdef _WIN32
+        const BOOL darkBorder = TRUE;
+        constexpr DWORD DwmwaUseImmersiveDarkMode = 20;
+        constexpr DWORD DwmwaUseImmersiveDarkModeBefore20h1 = 19;
+        HWND hwnd = rcast<HWND>(this->winId());
+        if (FAILED(DwmSetWindowAttribute(hwnd, DwmwaUseImmersiveDarkMode, &darkBorder, sizeof(darkBorder)))) {
+            DwmSetWindowAttribute(hwnd, DwmwaUseImmersiveDarkModeBefore20h1, &darkBorder, sizeof(darkBorder));
+        }
+
+        SetWindowPos(hwnd, nullptr, 0, 0, 0, 0, SWP_DRAWFRAME | SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER);
+        RedrawWindow(hwnd, nullptr, nullptr, RDW_FRAME | RDW_INVALIDATE);
+#endif
+
+        QSettings registry;
+        registry.setValue(kDarkThemeValue, "1");
+    } else {
+        qApp->setStyle(mOriginalStyleName);
+        qApp->setPalette(mOriginalPalette);
+        qApp->setStyleSheet(mOriginalStyleSheet);
+
+        // so, this works nicele if called BEFORE the window is shown, and I still don't know what should I call
+        // for it to have an effect AFTER the window is called
+#ifdef _WIN32
+        const BOOL darkBorder = FALSE;
+        constexpr DWORD DwmwaUseImmersiveDarkMode = 20;
+        constexpr DWORD DwmwaUseImmersiveDarkModeBefore20h1 = 19;
+        HWND hwnd = rcast<HWND>(this->winId());
+        if (FAILED(DwmSetWindowAttribute(hwnd, DwmwaUseImmersiveDarkMode, &darkBorder, sizeof(darkBorder)))) {
+            DwmSetWindowAttribute(hwnd, DwmwaUseImmersiveDarkModeBefore20h1, &darkBorder, sizeof(darkBorder));
+        }
+
+        SetWindowPos(hwnd, nullptr, 0, 0, 0, 0, SWP_DRAWFRAME | SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER);
+        RedrawWindow(hwnd, nullptr, nullptr, RDW_FRAME | RDW_INVALIDATE);
+#endif
+
+        QSettings registry;
+        registry.setValue(kDarkThemeValue, "0");
+    }
+}
+
 
 void MainWindow::on_action_Open_triggered() {
     QString folder = this->GetLastPathFolder();
@@ -645,6 +742,10 @@ void MainWindow::on_listTextures_customContextMenuRequested(const QPoint &pos) {
 
 void MainWindow::on_actionShow_transparency_triggered() {
     ui->imagePanel->ShowTransparency(ui->actionShow_transparency->isChecked());
+}
+
+void MainWindow::on_actionDark_theme_triggered() {
+    this->SetDarkTheme(ui->actionDark_theme->isChecked());
 }
 
 void MainWindow::on_actionAbout_triggered() {

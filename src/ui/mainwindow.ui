@@ -169,7 +169,7 @@
      <x>0</x>
      <y>0</y>
      <width>1000</width>
-     <height>22</height>
+     <height>21</height>
     </rect>
    </property>
    <widget class="QMenu" name="menu_File">
@@ -193,6 +193,8 @@
      <string>View</string>
     </property>
     <addaction name="actionShow_transparency"/>
+    <addaction name="separator"/>
+    <addaction name="actionDark_theme"/>
    </widget>
    <widget class="QMenu" name="menuHelp">
     <property name="title">
@@ -234,6 +236,14 @@
   <action name="action_Save">
    <property name="text">
     <string>&amp;Save...</string>
+   </property>
+  </action>
+  <action name="actionDark_theme">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Dark theme</string>
    </property>
   </action>
  </widget>
