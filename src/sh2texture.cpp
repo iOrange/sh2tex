@@ -337,13 +337,16 @@ SH2TextureContainer::SH2TextureContainer()
     , mIsPS2File(false)
     , mHasPS2Header(false)
     , mHeader_PS2{}
+    , mIsVirtual(false)
 {
 }
 
 SH2TextureContainer::~SH2TextureContainer() {
-    std::for_each(mTextures.begin(), mTextures.end(), [](SH2Texture* tex) {
-        delete tex;
-    });
+    if (!mIsVirtual) {
+        std::for_each(mTextures.begin(), mTextures.end(), [](SH2Texture* tex) {
+            delete tex;
+        });
+    }
     mTextures.clear();
 }
 
@@ -496,6 +499,14 @@ size_t SH2TextureContainer::GetNumTextures() const {
 
 SH2Texture* SH2TextureContainer::GetTexture(const size_t idx) {
     return mTextures[idx];
+}
+
+void SH2TextureContainer::SetVirtual(const bool isVirtual) {
+    mIsVirtual = true;
+}
+
+void SH2TextureContainer::AddTexture(SH2Texture* texture) {
+    mTextures.push_back(texture);
 }
 
 const StringArray& SH2TextureContainer::GetErrors() const {

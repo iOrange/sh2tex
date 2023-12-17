@@ -57,7 +57,7 @@ bool SH2Map::LoadFromStream(MemStream& stream) {
             RefPtr<SH2TextureContainer> container = MakeRefPtr<SH2TextureContainer>();
             MemStream subStream = stream.Substream(subDataHeader.subDataSize);
             if (container->LoadFromStream(subStream)) {
-                mTexturesContainer = container;
+                mTexturesContainers.emplace_back(container);
             } else {
                 return false;
             }
@@ -68,6 +68,15 @@ bool SH2Map::LoadFromStream(MemStream& stream) {
         }
 
         stream.SkipBytes(subDataHeader.subDataSize);
+    }
+
+    // create a virtual textures container that will hold ALL textures, just for the viewer
+    mVirtualTexturesContainer = MakeRefPtr<SH2TextureContainer>();
+    mVirtualTexturesContainer->SetVirtual(true);
+    for (auto& container : mTexturesContainers) {
+        for (size_t i = 0; i < container->GetNumTextures(); ++i) {
+            mVirtualTexturesContainer->AddTexture(container->GetTexture(i));
+        }
     }
 
     return true;
@@ -94,13 +103,14 @@ bool SH2Map::SaveToFile(const fs::path& path) {
 bool SH2Map::SaveToStream(MemWriteStream& stream) {
     stream.Write(mHeader);
 
+    size_t containerIdx = 0;
     for (auto& sd : mSubDatas) {
         auto& subDataHeader = sd.first;
 
         if (subDataHeader.subDataType == 2) {    // textures
             // save our textures container to stream to know the subData size
             MemWriteStream texturesStream;
-            if (!mTexturesContainer->SaveToStream(texturesStream)) {
+            if (!mTexturesContainers[containerIdx]->SaveToStream(texturesStream)) {
                 return false;
             }
 
@@ -108,6 +118,8 @@ bool SH2Map::SaveToStream(MemWriteStream& stream) {
 
             stream.Write(subDataHeader);
             stream.Write(texturesStream.Data(), texturesStream.GetWrittenBytesCount());
+
+            ++containerIdx;
         } else {
             stream.Write(subDataHeader);
             stream.Write(sd.second, subDataHeader.subDataSize);
@@ -118,5 +130,5 @@ bool SH2Map::SaveToStream(MemWriteStream& stream) {
 }
 
 RefPtr<SH2TextureContainer> SH2Map::GetTexturesContainer() {
-    return mTexturesContainer;
+    return mVirtualTexturesContainer;
 }

@@ -39,5 +39,6 @@ private:
 
     SH2MapHeader                 mHeader;
     MyArray<SubData>             mSubDatas;
-    RefPtr<SH2TextureContainer>  mTexturesContainer;
+    MyArray<RefPtr<SH2TextureContainer>> mTexturesContainers;
+    RefPtr<SH2TextureContainer>  mVirtualTexturesContainer;
 };

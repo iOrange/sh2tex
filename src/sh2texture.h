@@ -151,6 +151,9 @@ public:
     size_t      GetNumTextures() const;
     SH2Texture* GetTexture(const size_t idx);
 
+    void        SetVirtual(const bool isVirtual);
+    void        AddTexture(SH2Texture* texture);
+
     const StringArray&  GetErrors() const;
     const StringArray&  GetWarnings() const;
 
@@ -166,4 +169,7 @@ private:
     bool                            mIsPS2File;
     bool                            mHasPS2Header;
     SH2TextureContainerHeader_PS2   mHeader_PS2;
+
+    // virtual container (sh2tex)
+    bool                            mIsVirtual;
 };
