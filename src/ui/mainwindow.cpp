@@ -97,8 +97,7 @@ MainWindow::MainWindow(QWidget *parent)
     mOriginalStyleName = qApp->style()->name();
 
     QSettings registry;
-    QString isDarkEnabled = registry.value(kDarkThemeValue).toString();
-    const bool isDark = isDarkEnabled.isEmpty() ? false : (isDarkEnabled.at(0) == '1');
+    const bool isDark = registry.value(kDarkThemeValue).toBool();
 
     if (WindowsIsInDarkTheme() || isDark) {
         ui->actionDark_theme->setChecked(true);
@@ -547,7 +546,7 @@ void MainWindow::SetDarkTheme(const bool isDark) {
 #endif
 
         QSettings registry;
-        registry.setValue(kDarkThemeValue, "1");
+        registry.setValue(kDarkThemeValue, true);
     } else {
         qApp->setStyle(mOriginalStyleName);
         qApp->setPalette(mOriginalPalette);
@@ -569,7 +568,7 @@ void MainWindow::SetDarkTheme(const bool isDark) {
 #endif
 
         QSettings registry;
-        registry.setValue(kDarkThemeValue, "0");
+        registry.setValue(kDarkThemeValue, false);
     }
 }
 
