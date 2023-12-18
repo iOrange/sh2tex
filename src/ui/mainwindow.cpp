@@ -9,6 +9,7 @@
 #define BCDEC_IMPLEMENTATION
 #include "../libs/bcdec/bcdec.h"
 
+
 #include <QSettings>
 #include <QListWidgetItem>
 #include <QDragEnterEvent>
@@ -414,47 +415,71 @@ void MainWindow::UpdateStatusBar() {
 }
 
 void MainWindow::ExportTexture(const SH2Texture* texture, const fs::path& path) {
-    DDSTexture dds;
-
     const uint32_t width = texture->GetWidth();
     const uint32_t height = texture->GetHeight();
-
-    dds.SetWidth(width);
-    dds.SetHeight(height);
-
     const SH2Texture::Format texFormat = texture->GetFormat();
-    if (texFormat == SH2Texture::Format::RGBA8) {
-        dds.SetFormat(32);
-        const size_t dataSize = width * height * 4;
-        dds.SetData(texture->GetData(), dataSize);
-    } else if (texFormat == SH2Texture::Format::Paletted) {
-        MyArray<uint8_t> unpaletted(width * height * 4);
-        this->DecompressTexture(texture, unpaletted, true);
-        dds.SetData(unpaletted.data(), unpaletted.size());
-        dds.SetFormat(32);
+
+    const bool isPNG = path.extension() == ".png";
+    const bool isDDS = !isPNG;
+
+    if (isDDS) {
+        DDSTexture dds;
+        dds.SetWidth(width);
+        dds.SetHeight(height);
+
+        if (texFormat == SH2Texture::Format::RGBA8 || texFormat == SH2Texture::Format::RGBX8) {
+            dds.SetFormat(32);
+            const size_t dataSize = width * height * 4;
+            dds.SetData(texture->GetData(), dataSize);
+        } else if (texFormat == SH2Texture::Format::Paletted) {
+            BytesArray unpaletted(width * height * 4);
+            this->DecompressTexture(texture, unpaletted, true);
+            dds.SetData(unpaletted.data(), unpaletted.size());
+            dds.SetFormat(32);
+        } else {
+            switch (texFormat) {
+                case SH2Texture::Format::DXT1:
+                    dds.SetFormat(DDS_FOURCC_DXT1);
+                break;
+                case SH2Texture::Format::DXT2:
+                    dds.SetFormat(DDS_FOURCC_DXT2);
+                break;
+                case SH2Texture::Format::DXT3:
+                    dds.SetFormat(DDS_FOURCC_DXT3);
+                break;
+                case SH2Texture::Format::DXT4:
+                    dds.SetFormat(DDS_FOURCC_DXT4);
+                break;
+                case SH2Texture::Format::DXT5:
+                    dds.SetFormat(DDS_FOURCC_DXT5);
+                break;
+            }
+
+            const size_t dataSize = (texFormat == SH2Texture::Format::DXT1) ? BCDEC_BC1_COMPRESSED_SIZE(width, height) : BCDEC_BC3_COMPRESSED_SIZE(width, height);
+            dds.SetData(texture->GetData(), dataSize);
+        }
+        dds.SaveToFile(path);
     } else {
-        switch (texFormat) {
-            case SH2Texture::Format::DXT1:
-                dds.SetFormat(DDS_FOURCC_DXT1);
-            break;
-            case SH2Texture::Format::DXT2:
-                dds.SetFormat(DDS_FOURCC_DXT2);
-            break;
-            case SH2Texture::Format::DXT3:
-                dds.SetFormat(DDS_FOURCC_DXT3);
-            break;
-            case SH2Texture::Format::DXT4:
-                dds.SetFormat(DDS_FOURCC_DXT4);
-            break;
-            case SH2Texture::Format::DXT5:
-                dds.SetFormat(DDS_FOURCC_DXT5);
-            break;
+        RefPtr<QImage> qimg;
+        BytesArray decompressed;
+        if (texFormat == SH2Texture::Format::RGBA8 || texFormat == SH2Texture::Format::RGBX8) {
+            qimg = MakeRefPtr<QImage>(texture->GetData(), width, height, QImage::Format_RGBA8888);
+        } else if (texFormat == SH2Texture::Format::Paletted) {
+            qimg = MakeRefPtr<QImage>(texture->GetData(), width, height, QImage::Format_Indexed8);
+            const uint8_t* palette = texture->GetPalette();
+            QList<uint32_t> imgPal(256);
+            for (qsizetype i = 0; i < imgPal.size(); ++i) {
+                imgPal[i] = qRgb(palette[i * 4 + 2], palette[i * 4 + 1], palette[i * 4 + 0]);
+            }
+            qimg->setColorTable(imgPal);
+        } else {
+            decompressed.resize(width * height * 4);
+            this->DecompressTexture(texture, decompressed, true);
+            qimg = MakeRefPtr<QImage>(decompressed.data(), width, height, QImage::Format_RGBA8888);
         }
 
-        const size_t dataSize = (texFormat == SH2Texture::Format::DXT1) ? BCDEC_BC1_COMPRESSED_SIZE(width, height) : BCDEC_BC3_COMPRESSED_SIZE(width, height);
-        dds.SetData(texture->GetData(), dataSize);
+        qimg->save(QString::fromStdWString(path.wstring()), "PNG");
     }
-    dds.SaveToFile(path);
 }
 
 void MainWindow::ExportAllTextures(const fs::path& dstFolder) {
@@ -516,6 +541,7 @@ void MainWindow::SetDarkTheme(const bool isDark) {
         darkPalette.setColor(QPalette::ToolTipText, textColor);
         darkPalette.setColor(QPalette::Text, textColor);
         darkPalette.setColor(QPalette::Disabled, QPalette::Text, disabledColor);
+        darkPalette.setColor(QPalette::Disabled, QPalette::Light, Qt::black);
         darkPalette.setColor(QPalette::Button, darkColor);
         darkPalette.setColor(QPalette::ButtonText, textColor);
         darkPalette.setColor(QPalette::Disabled, QPalette::ButtonText, disabledColor);
@@ -702,7 +728,7 @@ void MainWindow::on_listTextures_customContextMenuRequested(const QPoint &pos) {
             }
             QString startPath = folder + '/' + name;
 
-            QString fileName = QFileDialog::getSaveFileName(this, tr("Where to save DDS file"), startPath, tr("DDS texture (*.dds)"));
+            QString fileName = QFileDialog::getSaveFileName(this, tr("Where to save the texture"), startPath, tr("DDS texture (*.dds);;PNG image (*.png)"));
             if (!fileName.isEmpty()) {
                 this->ExportTexture(texture, fileName.toStdWString());
             }
