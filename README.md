@@ -14,9 +14,13 @@ You can view, extract and replace any of the texture inside any of the aforement
 
 Use `Ctrl` + `+`/`-` combination to zoom in and out the selected image.
 
+Supports dark theme now!
+
 Have fun!
 
 Additional thanks to [@Polymega](https://github.com/Polymega) for testing and providing valuable feedback!
+
+![](screenshots/screen_04.jpg )
 
 ![](screenshots/screen_01.jpg )
 
