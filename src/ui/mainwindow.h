@@ -48,7 +48,7 @@ public:
 private slots:
     void        on_action_Open_triggered();
     void        on_action_Save_triggered();
-    void        on_actionRecentTexture_triggered(const size_t recentModelIdx);
+    void        on_actionRecentTexture_triggered(const size_t recentTextureIdx);
     void        on_actionE_xit_triggered();
     void        on_listTextures_itemSelectionChanged();
     void        on_listTextures_customContextMenuRequested(const QPoint &pos);

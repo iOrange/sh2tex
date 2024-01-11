@@ -8,7 +8,7 @@ struct SH2SpriteHeader {
     uint16_t width;
     uint16_t height;
     uint8_t  format;
-    uint8_t  isCompressed;      // pad byte on PS2
+    uint8_t  isCompressed;      // pad byte on PS2  (== 0x50 for bloated palette !!!)
     uint16_t importance;        // ???, I guess streaming stuff
 
     uint32_t dataSize;
@@ -68,10 +68,10 @@ struct SH2TexturePaletteHeader_SH2 {
     uint32_t paletteDataSize;
     uint32_t unknown_0;         // = paletteDataSize, or 0 if bloated
     uint32_t unknown_1;         // = paletteDataSize, or 0 if bloated
-    uint16_t colorsPerBlock;
-    uint8_t  numBlocks;
-    uint8_t  numBlocks2;
-    uint32_t unknown[8];
+    uint16_t bloatFactor;       // 1024 * bloatFactor == paletteDataSize
+    uint8_t  numColors;         // per block
+    uint8_t  readSize;          // useful block part
+    uint32_t unknown[8];        // always zeroes
 };
 static_assert(sizeof(SH2TexturePaletteHeader_SH2) == 48);
 
@@ -99,6 +99,8 @@ public:
     bool            SaveToFile(const fs::path& path);
     bool            SaveToStream(MemWriteStream& stream);
 
+    bool            SaveToStream_PS2(MemWriteStream& stream);
+
     uint32_t        GetID() const;
     uint32_t        GetWidth() const;
     uint32_t        GetHeight() const;
@@ -114,6 +116,7 @@ public:
     uint32_t        CalculateDataSize() const;
 
     void            Replace(const Format format, const uint32_t width, const uint32_t height, const uint8_t* data);
+    bool            Replace_PS2(const uint8_t* data, const uint8_t* palette);
 
     const StringArray& GetErrors() const;
     const StringArray& GetWarnings() const;
@@ -147,6 +150,7 @@ public:
 
     bool        SaveToFile(const fs::path& path);
     bool        SaveToStream(MemWriteStream& stream);
+    bool        SaveToStream_PS2(MemWriteStream& stream);
 
     size_t      GetNumTextures() const;
     SH2Texture* GetTexture(const size_t idx);

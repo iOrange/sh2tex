@@ -463,13 +463,15 @@ void MainWindow::ExportTexture(const SH2Texture* texture, const fs::path& path) 
         RefPtr<QImage> qimg;
         BytesArray decompressed;
         if (texFormat == SH2Texture::Format::RGBA8 || texFormat == SH2Texture::Format::RGBX8) {
-            qimg = MakeRefPtr<QImage>(texture->GetData(), width, height, QImage::Format_RGBA8888);
+            decompressed.resize(width * height * 4);
+            this->DecompressTexture(texture, decompressed, false);
+            qimg = MakeRefPtr<QImage>(decompressed.data(), width, height, QImage::Format_RGBA8888);
         } else if (texFormat == SH2Texture::Format::Paletted) {
             qimg = MakeRefPtr<QImage>(texture->GetData(), width, height, QImage::Format_Indexed8);
             const uint8_t* palette = texture->GetPalette();
             QList<uint32_t> imgPal(256);
             for (qsizetype i = 0; i < imgPal.size(); ++i) {
-                imgPal[i] = qRgb(palette[i * 4 + 2], palette[i * 4 + 1], palette[i * 4 + 0]);
+                imgPal[i] = qRgba(palette[i * 4 + 2], palette[i * 4 + 1], palette[i * 4 + 0], palette[i * 4 + 3]);
             }
             qimg->setColorTable(imgPal);
         } else {
@@ -498,30 +500,87 @@ void MainWindow::ImportTexture(const fs::path& path, const int idx) {
         return;
     }
 
-    DDSTexture dds;
-    if (!dds.LoadFromFile(path)) {
-        QMessageBox::critical(this, this->windowTitle(), tr("Failed to load DDS texture!"));
-        return;
-    }
-
-    const uint32_t ddsFormat = dds.GetFormat();
-    SH2Texture::Format sh2Format;
-    if (ddsFormat == DDS_FOURCC_DXT1) {
-        sh2Format = SH2Texture::Format::DXT1;
-    } else if (ddsFormat == DDS_FOURCC_DXT2) {
-        sh2Format = SH2Texture::Format::DXT2;
-    } else if (ddsFormat == DDS_FOURCC_DXT3) {
-        sh2Format = SH2Texture::Format::DXT3;
-    } else if (ddsFormat == DDS_FOURCC_DXT4) {
-        sh2Format = SH2Texture::Format::DXT4;
-    } else if (ddsFormat == DDS_FOURCC_DXT5) {
-        sh2Format = SH2Texture::Format::DXT5;
-    } else {
-        sh2Format = SH2Texture::Format::RGBA8;
-    }
-
     SH2Texture* texture = mTexturesContainer->GetTexture(idx);
-    texture->Replace(sh2Format, dds.GetWidth(), dds.GetHeight(), dds.GetData());
+    if (!texture->IsPS2File()) {
+        DDSTexture dds;
+        if (!dds.LoadFromFile(path)) {
+            QMessageBox::critical(this, this->windowTitle(), tr("Failed to load DDS texture!"));
+            return;
+        }
+
+        const uint32_t ddsFormat = dds.GetFormat();
+        SH2Texture::Format sh2Format;
+        if (ddsFormat == DDS_FOURCC_DXT1) {
+            sh2Format = SH2Texture::Format::DXT1;
+        } else if (ddsFormat == DDS_FOURCC_DXT2) {
+            sh2Format = SH2Texture::Format::DXT2;
+        } else if (ddsFormat == DDS_FOURCC_DXT3) {
+            sh2Format = SH2Texture::Format::DXT3;
+        } else if (ddsFormat == DDS_FOURCC_DXT4) {
+            sh2Format = SH2Texture::Format::DXT4;
+        } else if (ddsFormat == DDS_FOURCC_DXT5) {
+            sh2Format = SH2Texture::Format::DXT5;
+        } else {
+            sh2Format = SH2Texture::Format::RGBA8;
+        }
+
+        texture->Replace(sh2Format, dds.GetWidth(), dds.GetHeight(), dds.GetData());
+    } else {
+        RefPtr<QImage> qimg = MakeRefPtr<QImage>();
+        if (qimg->load(QString::fromStdWString(path.wstring()))) {
+            if (qimg->width() != texture->GetWidth() || qimg->height() != texture->GetHeight()) {
+                QMessageBox::critical(this, this->windowTitle(), tr("Image dimensions are non-compatible!"));
+                return;
+            }
+
+            const uint8_t* dataPtr = qimg->bits();
+            BytesArray swapped;
+            BytesArray palette;
+
+            if (qimg->format() == QImage::Format_Indexed8) {
+                if (texture->GetFormat() != SH2Texture::Format::Paletted) {
+                    QMessageBox::critical(this, this->windowTitle(), tr("Please select paletted image!"));
+                    return;
+                }
+
+                const QList<uint>& qpalette = qimg->colorTable();
+                palette.resize(256 * 4);
+                for (size_t i = 0; i < 256; ++i) {
+                    const QRgb rgba = qpalette[i];
+                    palette[i * 4 + 0] = qRed(rgba);
+                    palette[i * 4 + 1] = qGreen(rgba);
+                    palette[i * 4 + 2] = qBlue(rgba);
+                    palette[i * 4 + 3] = qAlpha(rgba);
+                }
+
+            } else if (qimg->format() == QImage::Format_RGBA8888 || qimg->format() == QImage::Format_ARGB32) {
+                if (texture->GetFormat() != SH2Texture::Format::RGBX8) {
+                    QMessageBox::critical(this, this->windowTitle(), tr("Please select 32bit image!"));
+                    return;
+                }
+
+                if (qimg->format() == QImage::Format_RGBA8888) {
+                    swapped.resize(qimg->width() * qimg->height() * 4);
+                    for (size_t i = 0, end = scast<size_t>(qimg->width() * qimg->height()); i < end; ++i) {
+                        swapped[i * 4 + 0] = dataPtr[i * 4 + 3];
+                        swapped[i * 4 + 1] = dataPtr[i * 4 + 2];
+                        swapped[i * 4 + 2] = dataPtr[i * 4 + 1];
+                        swapped[i * 4 + 3] = dataPtr[i * 4 + 0];
+                    }
+
+                    dataPtr = swapped.data();
+                }
+            } else {
+                QMessageBox::critical(this, this->windowTitle(), tr("Non-compatible image color format!"));
+                return;
+            }
+
+            texture->Replace_PS2(dataPtr, palette.empty() ? nullptr : palette.data());
+        } else {
+            QMessageBox::critical(this, this->windowTitle(), tr("Failed to load PNG image!"));
+            return;
+        }
+    }
 
     this->OnTextureLoaded(idx);
 }
@@ -556,7 +615,7 @@ void MainWindow::SetDarkTheme(const bool isDark) {
 
         qApp->setStyleSheet("QToolTip { color: #d6d6d6; background-color: #2e2e2e; border: 1px solid #151515; }");
 
-        // so, this works nicele if called BEFORE the window is shown, and I still don't know what should I call
+        // so, this works nicely if called BEFORE the window is shown, and I still don't know what should I call
         // for it to have an effect AFTER the window is called
 #ifdef _WIN32
         const BOOL darkBorder = TRUE;
@@ -578,7 +637,7 @@ void MainWindow::SetDarkTheme(const bool isDark) {
         qApp->setPalette(mOriginalPalette);
         qApp->setStyleSheet(mOriginalStyleSheet);
 
-        // so, this works nicele if called BEFORE the window is shown, and I still don't know what should I call
+        // so, this works nicely if called BEFORE the window is shown, and I still don't know what should I call
         // for it to have an effect AFTER the window is called
 #ifdef _WIN32
         const BOOL darkBorder = FALSE;
@@ -633,10 +692,10 @@ void MainWindow::on_action_Save_triggered() {
     }
 }
 
-void MainWindow::on_actionRecentTexture_triggered(const size_t recentModelIdx) {
+void MainWindow::on_actionRecentTexture_triggered(const size_t recentTextureIdx) {
     const QList<QAction*>& actions = ui->menuRecent_textures->actions();
-    if (recentModelIdx < scast<size_t>(actions.size())) {
-        fs::path modelPath = actions[recentModelIdx]->text().toStdWString();
+    if (recentTextureIdx < scast<size_t>(actions.size())) {
+        fs::path modelPath = actions[recentTextureIdx]->text().toStdWString();
         this->LoadTextureFromFile(modelPath, false);
     }
 }
@@ -697,10 +756,6 @@ void MainWindow::on_listTextures_customContextMenuRequested(const QPoint &pos) {
         QAction exportAllTextures(tr("Export all textures..."));
         QAction replaceTexture(tr("Replace texture..."));
 
-        if (texture->IsPS2File()) {
-            replaceTexture.setEnabled(false);
-        }
-
         exportAllTextures.setEnabled(mTexturesContainer->GetNumTextures() > 1);
 
         contextMenu.addAction(&exportTexture);
@@ -739,7 +794,14 @@ void MainWindow::on_listTextures_customContextMenuRequested(const QPoint &pos) {
             }
         } else if (selectedAction == &replaceTexture) {
             QString folder = this->GetLastPathFolder();
-            QString fileName = QFileDialog::getOpenFileName(this, tr("Select DDS texture"), folder, tr("DDS texture (*.dds)"));
+            QString fileName;
+
+            if (texture->IsPS2File()) {
+                fileName = QFileDialog::getOpenFileName(this, tr("Select PNG image"), folder, tr("PNG image (*.png)"));
+            } else {
+                fileName = QFileDialog::getOpenFileName(this, tr("Select DDS texture"), folder, tr("DDS texture (*.dds)"));
+            }
+
             if (!fileName.isEmpty()) {
                 this->ImportTexture(fileName.toStdWString(), idx);
             }

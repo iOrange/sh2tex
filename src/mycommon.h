@@ -286,7 +286,7 @@ public:
 
     template <typename T>
     void Write(const T& v) {
-        this->Write(&v, sizeof(v));
+        this->Write(&v, sizeof(T));
     }
 
 #define _IMPL_WRITE_FOR_TYPE(type, name)        \
@@ -307,13 +307,6 @@ public:
     _IMPL_WRITE_FOR_TYPE(double, F64);
 
 #undef _IMPL_WRITE_FOR_TYPE
-
-    void WriteStringZ(const CharString& str) {
-        if (!str.empty()) {
-            this->Write(str.c_str(), str.length());
-        }
-        this->WriteDupByte(0, 1);
-    }
 
     inline void Append(const MemStream& stream) {
         this->Write(stream.Data(), stream.Length());
