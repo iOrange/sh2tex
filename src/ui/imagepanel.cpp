@@ -77,7 +77,6 @@ void ImagePanel::SetImage(const void* pixelsRGBA, const size_t width, const size
         mImagePremultiplied = false;
     }
 
-    mZoom = 100;
     this->ShowTransparency(mTransparency);
     this->ResetScroll();
 }

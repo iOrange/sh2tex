@@ -145,12 +145,16 @@ bool MainWindow::eventFilter(QObject* obj, QEvent* event) {
         const int key = keyEvent->key();
         const Qt::KeyboardModifiers mods = keyEvent->modifiers();
 
-        if ((key == Qt::Key_Plus || key == Qt::Key_Minus) && mods.testFlag(Qt::ControlModifier)) {
-            if (key == Qt::Key_Plus) {
+        if ((key == Qt::Key_Plus || key == Qt::Key_Minus || key == Qt::Key_Equal) && mods.testFlag(Qt::ControlModifier)) {
+            if (key == Qt::Key_Plus || key == Qt::Key_Equal) {  // Key_Equal because some not use numerical pad, so have to react to `=+` key
                 ui->imagePanel->ZoomUp();
             } else {
                 ui->imagePanel->ZoomDown();
             }
+            this->UpdateStatusBar();
+            return true;
+        } else if (key == Qt::Key_0 && mods.testFlag(Qt::ControlModifier)) {
+            ui->imagePanel->ResetZoom();
             this->UpdateStatusBar();
             return true;
         }
@@ -314,6 +318,7 @@ void MainWindow::OnTextureLoaded(const int idx) {
         }
     }
 
+    ui->imagePanel->ResetZoom();
     ui->listTextures->setCurrentItem(selected);
 }
 
@@ -742,6 +747,8 @@ void MainWindow::on_listTextures_itemSelectionChanged() {
         }
 
         this->UpdateStatusBar();
+
+        ui->imagePanel->setFocus();
     }
 }
 
