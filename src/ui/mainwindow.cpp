@@ -542,15 +542,16 @@ void MainWindow::ImportTexture(const fs::path& path, const int idx) {
             BytesArray swapped;
             BytesArray palette;
 
-            if (qimg->format() == QImage::Format_Indexed8) {
-                if (texture->GetFormat() != SH2Texture::Format::Paletted) {
+            if (texture->GetFormat() == SH2Texture::Format::Paletted) {
+                if (qimg->format() != QImage::Format_Indexed8) {
                     QMessageBox::critical(this, this->windowTitle(), tr("Please select paletted image!"));
                     return;
                 }
 
                 const QList<uint>& qpalette = qimg->colorTable();
-                palette.resize(256 * 4);
-                for (size_t i = 0; i < 256; ++i) {
+                const size_t paletteSize = (std::min<size_t>)(qpalette.size(), 256);
+                palette.resize(256 * 4, 0xFF);
+                for (size_t i = 0; i < paletteSize; ++i) {
                     const QRgb rgba = qpalette[i];
                     palette[i * 4 + 0] = qRed(rgba);
                     palette[i * 4 + 1] = qGreen(rgba);
@@ -558,8 +559,8 @@ void MainWindow::ImportTexture(const fs::path& path, const int idx) {
                     palette[i * 4 + 3] = qAlpha(rgba);
                 }
 
-            } else if (qimg->format() == QImage::Format_RGBA8888 || qimg->format() == QImage::Format_ARGB32) {
-                if (texture->GetFormat() != SH2Texture::Format::RGBX8) {
+            } else if (texture->GetFormat() == SH2Texture::Format::RGBX8) {
+                if (qimg->format() != QImage::Format_RGBA8888 && qimg->format() != QImage::Format_ARGB32) {
                     QMessageBox::critical(this, this->windowTitle(), tr("Please select 32bit image!"));
                     return;
                 }
