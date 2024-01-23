@@ -18,7 +18,7 @@ Supports dark theme now!
 
 Have fun!
 
-Additional thanks to [@Polymega](https://github.com/Polymega) for testing and providing valuable feedback!
+Additional thanks to [@Polymega](https://github.com/Polymega) and [@IvNergal](https://github.com/IvNergal) for testing and providing valuable feedbacks!
 
 ![](screenshots/screen_04.jpg )
 

@@ -505,8 +505,13 @@ void MainWindow::ImportTexture(const fs::path& path, const int idx) {
         return;
     }
 
+    const bool isDDS = WStrEqualsCaseInsensitive(path.extension().wstring(), L".dds");
+
     SH2Texture* texture = mTexturesContainer->GetTexture(idx);
-    if (!texture->IsPS2File()) {
+
+    const bool isPS2 = texture->IsPS2File();
+
+    if (isDDS) {
         DDSTexture dds;
         if (!dds.LoadFromFile(path)) {
             QMessageBox::critical(this, this->windowTitle(), tr("Failed to load DDS texture!"));
@@ -533,16 +538,21 @@ void MainWindow::ImportTexture(const fs::path& path, const int idx) {
     } else {
         RefPtr<QImage> qimg = MakeRefPtr<QImage>();
         if (qimg->load(QString::fromStdWString(path.wstring()))) {
-            if (qimg->width() != texture->GetWidth() || qimg->height() != texture->GetHeight()) {
+
+            const uint32_t width = texture->GetWidth();
+            const uint32_t height = texture->GetHeight();
+
+            if (isPS2 && (qimg->width() != width || qimg->height() != height)) {
                 QMessageBox::critical(this, this->windowTitle(), tr("Image dimensions are non-compatible!"));
                 return;
             }
 
+            const SH2Texture::Format sh2Format = texture->GetFormat();
             const uint8_t* dataPtr = qimg->bits();
             BytesArray swapped;
             BytesArray palette;
 
-            if (texture->GetFormat() == SH2Texture::Format::Paletted) {
+            if (sh2Format == SH2Texture::Format::Paletted) {
                 if (qimg->format() != QImage::Format_Indexed8) {
                     QMessageBox::critical(this, this->windowTitle(), tr("Please select paletted image!"));
                     return;
@@ -559,7 +569,7 @@ void MainWindow::ImportTexture(const fs::path& path, const int idx) {
                     palette[i * 4 + 3] = qAlpha(rgba);
                 }
 
-            } else if (texture->GetFormat() == SH2Texture::Format::RGBX8) {
+            } else if (sh2Format == SH2Texture::Format::RGBX8 || sh2Format == SH2Texture::Format::RGBA8) {
                 if (qimg->format() != QImage::Format_RGBA8888 && qimg->format() != QImage::Format_ARGB32) {
                     QMessageBox::critical(this, this->windowTitle(), tr("Please select 32bit image!"));
                     return;
@@ -581,7 +591,11 @@ void MainWindow::ImportTexture(const fs::path& path, const int idx) {
                 return;
             }
 
-            texture->Replace_PS2(dataPtr, palette.empty() ? nullptr : palette.data());
+            if (isPS2) {
+                texture->Replace_PS2(dataPtr, palette.empty() ? nullptr : palette.data());
+            } else {
+                texture->Replace(sh2Format, width, height, dataPtr, palette.empty() ? nullptr : palette.data());
+            }
         } else {
             QMessageBox::critical(this, this->windowTitle(), tr("Failed to load PNG image!"));
             return;
@@ -807,7 +821,7 @@ void MainWindow::on_listTextures_customContextMenuRequested(const QPoint &pos) {
             if (texture->IsPS2File()) {
                 fileName = QFileDialog::getOpenFileName(this, tr("Select PNG image"), folder, tr("PNG image (*.png)"));
             } else {
-                fileName = QFileDialog::getOpenFileName(this, tr("Select DDS texture"), folder, tr("DDS texture (*.dds)"));
+                fileName = QFileDialog::getOpenFileName(this, tr("Select DDS or PNG image"), folder, tr("DDS texture (*.dds);;PNG image (*.png)"));
             }
 
             if (!fileName.isEmpty()) {

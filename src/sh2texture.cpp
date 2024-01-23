@@ -386,7 +386,7 @@ uint32_t SH2Texture::CalculateDataSize() const {
     }
 }
 
-void SH2Texture::Replace(const SH2Texture::Format format, const uint32_t width, const uint32_t height, const uint8_t* data) {
+void SH2Texture::Replace(const SH2Texture::Format format, const uint32_t width, const uint32_t height, const uint8_t* data, const uint8_t* palette) {
     mFormat = format;
     mHeader.width = width;
     mHeader.width2 = width;
@@ -412,7 +412,12 @@ void SH2Texture::Replace(const SH2Texture::Format format, const uint32_t width, 
     mData.resize(dataSize);
     std::memcpy(mData.data(), data, dataSize);
 
-    mPalette.clear();
+    if (mFormat == Format::Paletted && palette) {
+        mPalette.resize(256 * 4);
+        std::memcpy(mPalette.data(), palette, mPalette.size());
+    } else {
+        mPalette.clear();
+    }
 }
 
 bool SH2Texture::Replace_PS2(const uint8_t* data, const uint8_t* palette) {

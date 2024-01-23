@@ -115,7 +115,7 @@ public:
     uint32_t        GetOriginalDataSize() const;
     uint32_t        CalculateDataSize() const;
 
-    void            Replace(const Format format, const uint32_t width, const uint32_t height, const uint8_t* data);
+    void            Replace(const Format format, const uint32_t width, const uint32_t height, const uint8_t* data, const uint8_t* palette = nullptr);
     bool            Replace_PS2(const uint8_t* data, const uint8_t* palette);
 
     const StringArray& GetErrors() const;

@@ -12,6 +12,8 @@
 #include <cassert>
 #include <cuchar>
 #include <random>
+#include <cctype>   // std::tolower
+#include <cwctype>  // std::towlower
 
 
 #ifdef min
@@ -61,6 +63,20 @@ constexpr RefPtr<T> MakeRefPtr(Args&&... args) {
 template <typename T, typename U>
 constexpr RefPtr<T> SCastRefPtr(const RefPtr<U>& p) noexcept {
     return std::static_pointer_cast<T>(p);
+}
+
+inline bool StrEqualsCaseInsensitive(const CharString& str1, const CharString& str2) {
+    return str1.size() == str2.size() &&
+        std::equal(str1.begin(), str1.end(), str2.begin(), [](const char ch1, const char ch2) -> bool {
+            return std::tolower(scast<int>(ch1)) == std::tolower(scast<int>(ch2));
+        });
+}
+
+inline bool WStrEqualsCaseInsensitive(const WideString& str1, const WideString& str2) {
+    return str1.size() == str2.size() &&
+        std::equal(str1.begin(), str1.end(), str2.begin(), [](const wchar_t ch1, const wchar_t ch2) -> bool {
+            return std::towlower(scast<wint_t>(ch1)) == std::towlower(scast<wint_t>(ch2));
+        });
 }
 
 class MemStream {
