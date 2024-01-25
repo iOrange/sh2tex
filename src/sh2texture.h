@@ -91,35 +91,35 @@ public:
     SH2Texture();
     ~SH2Texture();
 
-    bool            LoadFromFile(const fs::path& path);
-    bool            LoadFromStream(MemStream& stream);
+    bool                LoadFromFile(const fs::path& path);
+    bool                LoadFromStream(MemStream& stream);
 
-    bool            LoadFromStream_PS2(MemStream& stream);
+    bool                LoadFromStream_PS2(MemStream& stream);
 
-    bool            SaveToFile(const fs::path& path);
-    bool            SaveToStream(MemWriteStream& stream);
+    bool                SaveToFile(const fs::path& path);
+    bool                SaveToStream(MemWriteStream& stream);
 
-    bool            SaveToStream_PS2(MemWriteStream& stream);
+    bool                SaveToStream_PS2(MemWriteStream& stream);
 
-    uint32_t        GetID() const;
-    uint32_t        GetWidth() const;
-    uint32_t        GetHeight() const;
-    Format          GetFormat() const;
-    const uint8_t*  GetData() const;
-    const uint8_t*  GetPalette() const;
+    uint32_t            GetID() const;
+    uint32_t            GetWidth() const;
+    uint32_t            GetHeight() const;
+    Format              GetFormat() const;
+    const uint8_t*      GetData() const;
+    const uint8_t*      GetPalette() const;
 
-    bool            IsCompressed() const;
-    bool            IsPremultiplied() const;
-    bool            IsPS2File() const;
+    bool                IsCompressed() const;
+    bool                IsPremultiplied() const;
+    bool                IsPS2File() const;
 
-    uint32_t        GetOriginalDataSize() const;
-    uint32_t        CalculateDataSize() const;
+    uint32_t            GetOriginalDataSize() const;
+    uint32_t            CalculateDataSize() const;
 
-    void            Replace(const Format format, const uint32_t width, const uint32_t height, const uint8_t* data, const uint8_t* palette = nullptr);
-    bool            Replace_PS2(const uint8_t* data, const uint8_t* palette);
+    void                Replace(const Format format, const uint32_t width, const uint32_t height, const uint8_t* data, const uint8_t* palette = nullptr);
+    bool                Replace_PS2(const uint8_t* data, const uint8_t* palette);
 
-    const StringArray& GetErrors() const;
-    const StringArray& GetWarnings() const;
+    const StringArray&  GetErrors() const;
+    const StringArray&  GetWarnings() const;
 
 private:
     SH2TextureHeader            mHeader;
@@ -144,24 +144,24 @@ public:
     SH2TextureContainer();
     ~SH2TextureContainer();
 
-    bool        LoadFromFile(const fs::path& path);
-    bool        LoadFromStream(MemStream& stream);
-    bool        LoadFromStream_PS2(MemStream& stream);
+    bool                LoadFromFile(const fs::path& path);
+    bool                LoadFromStream(MemStream& stream);
+    bool                LoadFromStream_PS2(MemStream& stream);
 
-    bool        SaveToFile(const fs::path& path);
-    bool        SaveToStream(MemWriteStream& stream);
-    bool        SaveToStream_PS2(MemWriteStream& stream);
+    bool                SaveToFile(const fs::path& path);
+    bool                SaveToStream(MemWriteStream& stream);
+    bool                SaveToStream_PS2(MemWriteStream& stream);
 
-    size_t      GetNumTextures() const;
-    SH2Texture* GetTexture(const size_t idx);
+    size_t              GetNumTextures() const;
+    SH2Texture*         GetTexture(const size_t idx);
 
-    void        SetVirtual(const bool isVirtual);
-    void        AddTexture(SH2Texture* texture);
+    void                SetVirtual(const bool isVirtual);
+    void                AddTexture(SH2Texture* texture);
 
     const StringArray&  GetErrors() const;
     const StringArray&  GetWarnings() const;
 
-    bool        IsPS2File() const;
+    bool                IsPS2File() const;
 
 private:
     SH2TextureContainerHeader       mHeader;
@@ -173,6 +173,10 @@ private:
     bool                            mIsPS2File;
     bool                            mHasPS2Header;
     SH2TextureContainerHeader_PS2   mHeader_PS2;
+
+    // mostly for XBOX can can be any platform
+    bool                            mHasTrailingHeader;
+    SH2TextureHeader                mTrailingHeader;
 
     // virtual container (sh2tex)
     bool                            mIsVirtual;

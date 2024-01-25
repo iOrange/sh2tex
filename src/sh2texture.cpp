@@ -463,6 +463,9 @@ SH2TextureContainer::SH2TextureContainer()
     , mHasPS2Header(false)
     , mHeader_PS2{}
     , mIsVirtual(false)
+    // mostly for XBOX can can be any platform
+    , mHasTrailingHeader(false)
+    , mTrailingHeader{}
 {
 }
 
@@ -534,7 +537,8 @@ bool SH2TextureContainer::LoadFromStream(MemStream& stream) {
         stream.RewindBytes(sizeof(testId));
 
         if (testId == 0u) {
-            stream.SkipBytes(sizeof(SH2TextureHeader));
+            mHasTrailingHeader = true;
+            stream.ReadStruct(mTrailingHeader);
         } else {
             SH2Texture* texture = new SH2Texture();
             if (!texture->LoadFromStream(stream)) {
@@ -612,9 +616,9 @@ bool SH2TextureContainer::SaveToStream(MemWriteStream& stream) {
         }
     }
 
-    if (mTextures.empty() || mTextures.size() > 1) {
+    if (mTextures.empty() || mTextures.size() > 1 || mHasTrailingHeader) {
         // looks like TBN2 containers always have 16 tail zeroes
-        stream.WriteDupByte(0, sizeof(SH2TextureHeader));
+        stream.Write(mTrailingHeader);
     }
 
     return true;
