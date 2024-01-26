@@ -76,6 +76,15 @@ MainWindow::MainWindow(QWidget *parent)
     , ui(new Ui::MainWindow)
     , mStatusLabel(new QLabel)
     , mTexturesContainer(nullptr)
+    , mMap{}
+    , mModel{}
+    , mLastPath{}
+    , mWasModified(false)
+    , mFilesInDirectory{}
+    , mFilesInDirectoryIterator{}
+    , mOriginalPalette{}
+    , mOriginalStyleSheet{}
+    , mOriginalStyleName{}
 {
     ui->setupUi(this);
     setAcceptDrops(true);
@@ -218,6 +227,8 @@ void MainWindow::DecompressTexture(const SH2Texture* texture, BytesArray& output
 }
 
 void MainWindow::LoadTextureFromFile(const fs::path& path, const bool addToRecent, const bool fromIterator) {
+    mWasModified = false;
+
     fs::path fixedPath = FixPath(path);
 
     bool loadSucceeded = false;
@@ -269,9 +280,25 @@ void MainWindow::LoadTextureFromFile(const fs::path& path, const bool addToRecen
     }
 
     if (loadSucceeded) {
+        mLastPath = fixedPath;
+
+        if (!fromIterator) {
+            mFilesInDirectory.clear();
+            std::error_code ec{};
+            for (const fs::directory_entry& e : fs::directory_iterator(mLastPath.parent_path())) {
+                if (e.is_regular_file(ec)) {
+                    fs::path entryPath = e.path();
+                    if (WStrEqualsCaseInsensitive(entryPath.extension(), L".tex") || WStrEqualsCaseInsensitive(entryPath.extension(), L".tbn2")) {
+                        mFilesInDirectory.emplace_back(FixPath(entryPath));
+                    }
+                }
+            }
+            mFilesInDirectoryIterator = std::find(mFilesInDirectory.begin(), mFilesInDirectory.end(), fixedPath);
+            assert(mFilesInDirectoryIterator != mFilesInDirectory.end());
+        }
+
         this->OnTextureLoaded();
 
-        mLastPath = fixedPath;
         this->setWindowTitle(mOriginalTitle + QString("   - ") + QString::fromStdWString(mLastPath.filename().wstring()));
 
         if (addToRecent) {
@@ -411,7 +438,15 @@ void MainWindow::UpdateStatusBar() {
 
             const int zoom = ui->imagePanel->GetZoom();
 
-            mStatusLabel->setText(QString("Selected texture - id: %1, size: %2x%3, format: %4,  zoom: %5%").arg(texture->GetID()).arg(width).arg(height).arg(formatName).arg(zoom));
+            QString text = QString("Selected texture - id: %1, size: %2x%3, format: %4,  zoom: %5%").arg(texture->GetID()).arg(width).arg(height).arg(formatName).arg(zoom);
+
+            if (!mFilesInDirectory.empty() && mFilesInDirectoryIterator != mFilesInDirectory.end()) {
+                const size_t filePos = std::distance(mFilesInDirectory.begin(), mFilesInDirectoryIterator) + 1;
+
+                text += QString(",  file %1 of %2").arg(filePos).arg(mFilesInDirectory.size());
+            }
+
+            mStatusLabel->setText(text);
             return;
         }
     }
@@ -535,6 +570,7 @@ void MainWindow::ImportTexture(const fs::path& path, const int idx) {
         }
 
         texture->Replace(sh2Format, dds.GetWidth(), dds.GetHeight(), dds.GetData());
+        mWasModified = true;
     } else {
         RefPtr<QImage> qimg = MakeRefPtr<QImage>();
         if (qimg->load(QString::fromStdWString(path.wstring()))) {
@@ -596,6 +632,7 @@ void MainWindow::ImportTexture(const fs::path& path, const int idx) {
             } else {
                 texture->Replace(sh2Format, width, height, dataPtr, palette.empty() ? nullptr : palette.data());
             }
+            mWasModified = true;
         } else {
             QMessageBox::critical(this, this->windowTitle(), tr("Failed to load PNG image!"));
             return;
@@ -675,6 +712,38 @@ void MainWindow::SetDarkTheme(const bool isDark) {
         QSettings registry;
         registry.setValue(kDarkThemeValue, false);
     }
+}
+
+void MainWindow::IterateFile(const int direction) {
+    if (mFilesInDirectory.size() < 2 || mFilesInDirectoryIterator == mFilesInDirectory.end()) {
+        return;
+    }
+
+    if (mWasModified) {
+        const auto decision = QMessageBox::information(this,
+                                                       tr("Unsaved texture!"),
+                                                       tr("The current texture was modified.\nDo you want to go back and save it?"),
+                                                       QMessageBox::Yes,
+                                                       QMessageBox::No);
+
+        if (decision == QMessageBox::Yes) {
+            return;
+        }
+    }
+
+    if (direction < 0) {    // previous file
+        if (mFilesInDirectoryIterator == mFilesInDirectory.begin()) {
+            mFilesInDirectoryIterator = mFilesInDirectory.end();
+        }
+        --mFilesInDirectoryIterator;
+    } else {                // next file
+        ++mFilesInDirectoryIterator;
+        if (mFilesInDirectoryIterator == mFilesInDirectory.end()) {
+            mFilesInDirectoryIterator = mFilesInDirectory.begin();
+        }
+    }
+
+    this->LoadTextureFromFile(*mFilesInDirectoryIterator, false, true);
 }
 
 
@@ -860,4 +929,12 @@ void MainWindow::on_actionDark_theme_triggered() {
 void MainWindow::on_actionAbout_triggered() {
     AboutDlg dlg(this);
     dlg.exec();
+}
+
+void MainWindow::on_actionPrevious_file_triggered() {
+    this->IterateFile(-1);
+}
+
+void MainWindow::on_actionNext_file_triggered() {
+    this->IterateFile(+1);
 }

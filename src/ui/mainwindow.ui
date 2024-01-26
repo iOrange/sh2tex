@@ -195,6 +195,9 @@
     <addaction name="actionShow_transparency"/>
     <addaction name="separator"/>
     <addaction name="actionDark_theme"/>
+    <addaction name="separator"/>
+    <addaction name="actionPrevious_file"/>
+    <addaction name="actionNext_file"/>
    </widget>
    <widget class="QMenu" name="menuHelp">
     <property name="title">
@@ -211,10 +214,16 @@
    <property name="text">
     <string>&amp;Open...</string>
    </property>
+   <property name="shortcut">
+    <string>Ctrl+O</string>
+   </property>
   </action>
   <action name="actionE_xit">
    <property name="text">
     <string>E&amp;xit</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+Alt+X</string>
    </property>
   </action>
   <action name="actionShow_transparency">
@@ -227,6 +236,9 @@
    <property name="text">
     <string>Show transparency</string>
    </property>
+   <property name="shortcut">
+    <string>Ctrl+T</string>
+   </property>
   </action>
   <action name="actionAbout">
    <property name="text">
@@ -237,6 +249,9 @@
    <property name="text">
     <string>&amp;Save...</string>
    </property>
+   <property name="shortcut">
+    <string>Ctrl+S</string>
+   </property>
   </action>
   <action name="actionDark_theme">
    <property name="checkable">
@@ -244,6 +259,22 @@
    </property>
    <property name="text">
     <string>Dark theme</string>
+   </property>
+  </action>
+  <action name="actionPrevious_file">
+   <property name="text">
+    <string>Previous file</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+PgUp</string>
+   </property>
+  </action>
+  <action name="actionNext_file">
+   <property name="text">
+    <string>Next file</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+PgDown</string>
    </property>
   </action>
  </widget>

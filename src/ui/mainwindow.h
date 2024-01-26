@@ -45,6 +45,8 @@ public:
 
     void        SetDarkTheme(const bool isDark);
 
+    void        IterateFile(const int direction);
+
 private slots:
     void        on_action_Open_triggered();
     void        on_action_Save_triggered();
@@ -55,6 +57,8 @@ private slots:
     void        on_actionShow_transparency_triggered();
     void        on_actionDark_theme_triggered();
     void        on_actionAbout_triggered();
+    void        on_actionPrevious_file_triggered();
+    void        on_actionNext_file_triggered();
 
 private:
     Ui::MainWindow*             ui;
@@ -64,6 +68,11 @@ private:
     RefPtr<SH2Map>              mMap;
     RefPtr<SH2Model>            mModel;
     fs::path                    mLastPath;
+    bool                        mWasModified;
+
+    // files iterating stuff
+    MyArray<fs::path>           mFilesInDirectory;
+    MyArray<fs::path>::iterator mFilesInDirectoryIterator;
 
     // 
     QPalette                    mOriginalPalette;
