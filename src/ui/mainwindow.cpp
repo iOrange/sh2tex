@@ -132,7 +132,7 @@ void MainWindow::dropEvent(QDropEvent* event) {
     if (url.isLocalFile()) {
         QString filePath = url.toLocalFile();
         if (IsAcceptedExtension(filePath)) {
-            this->LoadTextureFromFile(filePath.toStdWString(), true);
+            this->LoadTextureFromFile(filePath.toStdWString(), true, false);
 
             event->acceptProposedAction();
         }
@@ -217,12 +217,12 @@ void MainWindow::DecompressTexture(const SH2Texture* texture, BytesArray& output
     }
 }
 
-void MainWindow::LoadTextureFromFile(const fs::path& path, const bool addToRecent) {
+void MainWindow::LoadTextureFromFile(const fs::path& path, const bool addToRecent, const bool fromIterator) {
     fs::path fixedPath = FixPath(path);
 
     bool loadSucceeded = false;
 
-    if (fixedPath.extension() == ".map") {
+    if (WStrEqualsCaseInsensitive(fixedPath.extension(), L".map")) {
         RefPtr<SH2Map> map = MakeRefPtr<SH2Map>();
         if (map->LoadFromFile(fixedPath)) {
             mMap = map;
@@ -230,7 +230,7 @@ void MainWindow::LoadTextureFromFile(const fs::path& path, const bool addToRecen
             mModel = nullptr;
             loadSucceeded = true;
         }
-    } else if (fixedPath.extension() == ".mdl") {
+    } else if (WStrEqualsCaseInsensitive(fixedPath.extension(), L".mdl")) {
         RefPtr<SH2Model> model = MakeRefPtr<SH2Model>();
         if (model->LoadFromFile(fixedPath)) {
             mModel = model;
@@ -424,7 +424,7 @@ void MainWindow::ExportTexture(const SH2Texture* texture, const fs::path& path) 
     const uint32_t height = texture->GetHeight();
     const SH2Texture::Format texFormat = texture->GetFormat();
 
-    const bool isPNG = path.extension() == ".png";
+    const bool isPNG = WStrEqualsCaseInsensitive(path.extension(), L".png");
     const bool isDDS = !isPNG;
 
     if (isDDS) {
@@ -685,7 +685,7 @@ void MainWindow::on_action_Open_triggered() {
                                                     folder,
                                                     tr("SH2 known formats (*.tex *.tbn2 *.map *.mdl);;SH2 textures (*.tex *.tbn2);;SH2 map files (*.map);;SH2 model files (*.model);;All files (*.*)"));
     if (!fileName.isEmpty()) {
-        this->LoadTextureFromFile(fileName.toStdWString(), true);
+        this->LoadTextureFromFile(fileName.toStdWString(), true, false);
     }
 }
 
@@ -716,7 +716,7 @@ void MainWindow::on_actionRecentTexture_triggered(const size_t recentTextureIdx)
     const QList<QAction*>& actions = ui->menuRecent_textures->actions();
     if (recentTextureIdx < scast<size_t>(actions.size())) {
         fs::path modelPath = actions[recentTextureIdx]->text().toStdWString();
-        this->LoadTextureFromFile(modelPath, false);
+        this->LoadTextureFromFile(modelPath, false, false);
     }
 }
 

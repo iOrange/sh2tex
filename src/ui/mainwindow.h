@@ -30,7 +30,7 @@ protected:
 public:
     int         GetSelectedTextureIdx() const;
     void        DecompressTexture(const SH2Texture* texture, BytesArray& output, const bool doNotSwizzle);
-    void        LoadTextureFromFile(const fs::path& path, const bool addToRecent);
+    void        LoadTextureFromFile(const fs::path& path, const bool addToRecent, const bool fromIterator);
     void        OnTextureLoaded(const int idx = -1);
     QString     GetLastPathFolder() const;
     QString     GetLastPathFileName() const;

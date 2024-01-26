@@ -14,8 +14,11 @@ int main(int argc, char *argv[]) {
 
     if (argc > 1) {
         fs::path filePath = argv[1];
-        if (filePath.extension() == ".tex" || filePath.extension() == ".tbn2" || filePath.extension() == "*.map" || filePath.extension() == "*.mdl") {
-            w.LoadTextureFromFile(filePath, true);
+        if (WStrEqualsCaseInsensitive(filePath.extension(), L".tex")  ||
+            WStrEqualsCaseInsensitive(filePath.extension(), L".tbn2") ||
+            WStrEqualsCaseInsensitive(filePath.extension(), L".map")  ||
+            WStrEqualsCaseInsensitive(filePath.extension(), L".mdl")) {
+            w.LoadTextureFromFile(filePath, true, false);
         }
     }
 
