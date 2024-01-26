@@ -288,7 +288,17 @@ void MainWindow::LoadTextureFromFile(const fs::path& path, const bool addToRecen
             for (const fs::directory_entry& e : fs::directory_iterator(mLastPath.parent_path())) {
                 if (e.is_regular_file(ec)) {
                     fs::path entryPath = e.path();
-                    if (WStrEqualsCaseInsensitive(entryPath.extension(), L".tex") || WStrEqualsCaseInsensitive(entryPath.extension(), L".tbn2")) {
+
+                    bool acceptedExtension = false;
+                    if (mMap && WStrEqualsCaseInsensitive(entryPath.extension(), L".map")) {
+                        acceptedExtension = true;
+                    } else if (mModel && WStrEqualsCaseInsensitive(entryPath.extension(), L".mdl")) {
+                        acceptedExtension = true;
+                    } else if (WStrEqualsCaseInsensitive(entryPath.extension(), L".tex") || WStrEqualsCaseInsensitive(entryPath.extension(), L".tbn2")) {
+                        acceptedExtension = true;
+                    }
+
+                    if (acceptedExtension) {
                         mFilesInDirectory.emplace_back(FixPath(entryPath));
                     }
                 }
