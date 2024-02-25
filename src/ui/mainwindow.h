@@ -30,6 +30,7 @@ protected:
 public:
     int         GetSelectedTextureIdx() const;
     void        DecompressTexture(const SH2Texture* texture, BytesArray& output, const bool doNotSwizzle);
+    void        SetTextureToImagePanel(const SH2Texture* texture);
     void        LoadTextureFromFile(const fs::path& path, const bool addToRecent, const bool fromIterator);
     void        OnTextureLoaded(const int idx = -1);
     QString     GetLastPathFolder() const;
@@ -59,6 +60,7 @@ private slots:
     void        on_actionAbout_triggered();
     void        on_actionPrevious_file_triggered();
     void        on_actionNext_file_triggered();
+    void        on_paletteComboBox_currentIndexChanged(int index);
 
 private:
     Ui::MainWindow*             ui;

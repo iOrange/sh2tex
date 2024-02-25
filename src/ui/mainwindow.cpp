@@ -12,6 +12,7 @@
 
 #include <QSettings>
 #include <QListWidgetItem>
+#include <QComboBox>
 #include <QDragEnterEvent>
 #include <QMimeData>
 #include <QFileDialog>
@@ -224,6 +225,15 @@ void MainWindow::DecompressTexture(const SH2Texture* texture, BytesArray& output
             std::swap(output[i + 0], output[i + 2]);
         }
     }
+}
+
+void MainWindow::SetTextureToImagePanel(const SH2Texture* texture) {
+    const uint32_t width = texture->GetWidth();
+    const uint32_t height = texture->GetHeight();
+    BytesArray decompressed(width * height * 4);
+    this->DecompressTexture(texture, decompressed, false);
+
+    ui->imagePanel->SetImage(decompressed.data(), width, height);
 }
 
 void MainWindow::LoadTextureFromFile(const fs::path& path, const bool addToRecent, const bool fromIterator) {
@@ -808,12 +818,7 @@ void MainWindow::on_listTextures_itemSelectionChanged() {
     if (idx >= 0 && idx < mTexturesContainer->GetNumTextures()) {
         const SH2Texture* texture = mTexturesContainer->GetTexture(idx);
 
-        const uint32_t width = texture->GetWidth();
-        const uint32_t height = texture->GetHeight();
-        BytesArray decompressed(width * height * 4);
-        this->DecompressTexture(texture, decompressed, false);
-
-        ui->imagePanel->SetImage(decompressed.data(), width, height);
+        this->SetTextureToImagePanel(texture);
 
         QString formatName = SH2FormatToString(texture->GetFormat());
         const uint32_t orgDataSize = texture->GetOriginalDataSize();
@@ -821,8 +826,8 @@ void MainWindow::on_listTextures_itemSelectionChanged() {
 
         ui->listProperties->clear();
         ui->listProperties->addTopLevelItem(new QTreeWidgetItem({ tr("ID"), QString::number(texture->GetID()) }));
-        ui->listProperties->addTopLevelItem(new QTreeWidgetItem({ tr("Width"), QString::number(width) }));
-        ui->listProperties->addTopLevelItem(new QTreeWidgetItem({ tr("Height"), QString::number(height) }));
+        ui->listProperties->addTopLevelItem(new QTreeWidgetItem({ tr("Width"), QString::number(texture->GetWidth()) }));
+        ui->listProperties->addTopLevelItem(new QTreeWidgetItem({ tr("Height"), QString::number(texture->GetHeight()) }));
         ui->listProperties->addTopLevelItem(new QTreeWidgetItem({ tr("Format"), formatName }));
 
         QTreeWidgetItem* dataSizeItem = new QTreeWidgetItem({ tr("Data size"), QString::number(orgDataSize)});
@@ -838,6 +843,21 @@ void MainWindow::on_listTextures_itemSelectionChanged() {
             ps2FileItem->setForeground(0, QBrush(Qt::blue));
             ps2FileItem->setForeground(1, QBrush(Qt::blue));
             ui->listProperties->addTopLevelItem(ps2FileItem);
+
+            if (texture->GetPalettesCount() > 1) {
+                QComboBox* comboBox = new QComboBox(this);
+                QStringList comboItems;
+                for (size_t paletteIdx = 0; paletteIdx < texture->GetPalettesCount(); ++paletteIdx) {
+                    comboItems << (tr("Palette ") + QString::number(paletteIdx + 1));
+                }
+                comboBox->addItems(comboItems);
+
+                QTreeWidgetItem* paletteItem = new QTreeWidgetItem({ tr("Palette"), QString()});
+                ui->listProperties->addTopLevelItem(paletteItem);
+                ui->listProperties->setItemWidget(paletteItem, 1, comboBox);
+
+                connect(comboBox, &QComboBox::currentIndexChanged, this, &MainWindow::on_paletteComboBox_currentIndexChanged);
+            }
         }
 
         this->UpdateStatusBar();
@@ -947,4 +967,14 @@ void MainWindow::on_actionPrevious_file_triggered() {
 
 void MainWindow::on_actionNext_file_triggered() {
     this->IterateFile(+1);
+}
+
+void MainWindow::on_paletteComboBox_currentIndexChanged(int index) {
+    const int idx = this->GetSelectedTextureIdx();
+    if (idx >= 0 && idx < mTexturesContainer->GetNumTextures()) {
+        SH2Texture* texture = mTexturesContainer->GetTexture(idx);
+        texture->SetCurrentPaletteIdx(index);
+
+        this->SetTextureToImagePanel(texture);
+    }
 }

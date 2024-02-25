@@ -6,7 +6,8 @@
 constexpr uint32_t kMapFileMagic = 0x20010510;
 
 SH2Map::SH2Map()
-    : mHeader{}
+    : mIsPS2(false)
+    , mHeader{}
 {
 }
 SH2Map::~SH2Map() {
@@ -44,6 +45,12 @@ bool SH2Map::LoadFromStream(MemStream& stream) {
     stream.ReadStruct(mHeader);
 
     if (mHeader.magic != kMapFileMagic) {
+        // check for PS2 file
+        if (mHeader.magic == 0x77777777) {
+            stream.RewindBytes(sizeof(mHeader));
+            return this->LoadFromStream_PS2(stream);
+        }
+
         return false;
     }
 
@@ -78,6 +85,35 @@ bool SH2Map::LoadFromStream(MemStream& stream) {
             mVirtualTexturesContainer->AddTexture(container->GetTexture(i));
         }
     }
+
+    return true;
+}
+
+bool SH2Map::LoadFromStream_PS2(MemStream& stream) {
+    uint32_t header[12] = {};
+    stream.ReadToBuffer(header, sizeof(header));
+
+    //const uint32_t texOffset0 = header[4];
+    //const uint32_t texOffset1 = header[5];
+    //const uint32_t texOffset1 = header[6];
+    //const uint32_t palOffset0 = header[7];
+    //const uint32_t palOffset1 = header[8];
+    //const uint32_t palOffset1 = header[9];
+    const uint32_t numTextures = header[10];
+
+    mVirtualTexturesContainer = MakeRefPtr<SH2TextureContainer>();
+    for (size_t i = 0; i < numTextures; ++i) {
+        MemStream tstream = stream.Substream(header[i + 4], stream.Length());
+
+        SH2Texture* texture = new SH2Texture();
+        if (texture->LoadFromStream_PS2(tstream)) {
+            mVirtualTexturesContainer->AddTexture(texture);
+        } else {
+            delete texture;
+        }
+    }
+
+    mIsPS2 = true;
 
     return true;
 }
@@ -127,6 +163,10 @@ bool SH2Map::SaveToStream(MemWriteStream& stream) {
     }
 
     return true;
+}
+
+bool SH2Map::IsPS2() const {
+    return mIsPS2;
 }
 
 RefPtr<SH2TextureContainer> SH2Map::GetTexturesContainer() {

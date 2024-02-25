@@ -68,7 +68,7 @@ struct SH2TexturePaletteHeader_SH2 {
     uint32_t paletteDataSize;
     uint32_t unknown_0;         // = paletteDataSize, or 0 if bloated
     uint32_t unknown_1;         // = paletteDataSize, or 0 if bloated
-    uint16_t bloatFactor;       // 1024 * bloatFactor == paletteDataSize
+    uint16_t palettesCount;     // 1024 * bloatFactor == paletteDataSize
     uint8_t  numColors;         // per block
     uint8_t  readSize;          // useful block part
     uint32_t unknown[8];        // always zeroes
@@ -82,44 +82,52 @@ public:
         DXT2,
         DXT3,
         DXT4,
-        DXT5,
+        DXT5,           // 4bit paletted for PS2
         Paletted = 8,
         RGBX8 = 24,
-        RGBA8 = 32
+        RGBA8 = 32,
+
+        Paletted4 = 4,  // PS2 only
     };
 
     SH2Texture();
     ~SH2Texture();
 
-    bool                LoadFromFile(const fs::path& path);
-    bool                LoadFromStream(MemStream& stream);
+    bool                        LoadFromFile(const fs::path& path);
+    bool                        LoadFromStream(MemStream& stream);
 
-    bool                LoadFromStream_PS2(MemStream& stream);
+    bool                        LoadFromStream_PS2(MemStream& stream);
 
-    bool                SaveToFile(const fs::path& path);
-    bool                SaveToStream(MemWriteStream& stream);
+    bool                        SaveToFile(const fs::path& path);
+    bool                        SaveToStream(MemWriteStream& stream);
 
-    bool                SaveToStream_PS2(MemWriteStream& stream);
+    bool                        SaveToStream_PS2(MemWriteStream& stream);
 
-    uint32_t            GetID() const;
-    uint32_t            GetWidth() const;
-    uint32_t            GetHeight() const;
-    Format              GetFormat() const;
-    const uint8_t*      GetData() const;
-    const uint8_t*      GetPalette() const;
+    uint32_t                    GetID() const;
+    uint32_t                    GetWidth() const;
+    uint32_t                    GetHeight() const;
+    Format                      GetFormat() const;
+    const uint8_t*              GetData() const;
+    const uint8_t*              GetPalette() const;
 
-    bool                IsCompressed() const;
-    bool                IsPremultiplied() const;
-    bool                IsPS2File() const;
+    // PS2 specific palette funcs
+    size_t                      GetPalettesCount() const;
+    size_t                      GetCurrentPaletteIdx() const;
+    void                        SetCurrentPaletteIdx(const size_t idx);
+    void                        ImportPalette();
 
-    uint32_t            GetOriginalDataSize() const;
-    uint32_t            CalculateDataSize() const;
+    bool                        IsCompressed() const;
+    bool                        IsPremultiplied() const;
+    bool                        IsPS2File() const;
 
-    void                Replace(const Format format, const uint32_t width, const uint32_t height, const uint8_t* data, const uint8_t* palette = nullptr);
-    bool                Replace_PS2(const uint8_t* data, const uint8_t* palette);
+    uint32_t                    GetOriginalDataSize() const;
+    uint32_t                    CalculateDataSize() const;
 
-    const StringArray&  GetErrors() const;
-    const StringArray&  GetWarnings() const;
+    void                        Replace(const Format format, const uint32_t width, const uint32_t height, const uint8_t* data, const uint8_t* palette = nullptr);
+    bool                        Replace_PS2(const uint8_t* data, const uint8_t* palette);
+
+    const StringArray&          GetErrors() const;
+    const StringArray&          GetWarnings() const;
 
 private:
     SH2TextureHeader            mHeader;
@@ -129,6 +137,8 @@ private:
     uint32_t                    mOriginalDataSize;  // cached from sprite that has data
     BytesArray                  mData;
     BytesArray                  mPalette;
+    BytesArray                  mPalettePS2;        // this will hold all the PS2 palette bytes
+    size_t                      mPaletteIdx;        // PS2 only
 
     StringArray                 mErrors;
     StringArray                 mWarnings;
@@ -144,24 +154,24 @@ public:
     SH2TextureContainer();
     ~SH2TextureContainer();
 
-    bool                LoadFromFile(const fs::path& path);
-    bool                LoadFromStream(MemStream& stream);
-    bool                LoadFromStream_PS2(MemStream& stream);
+    bool                            LoadFromFile(const fs::path& path);
+    bool                            LoadFromStream(MemStream& stream);
+    bool                            LoadFromStream_PS2(MemStream& stream);
 
-    bool                SaveToFile(const fs::path& path);
-    bool                SaveToStream(MemWriteStream& stream);
-    bool                SaveToStream_PS2(MemWriteStream& stream);
+    bool                            SaveToFile(const fs::path& path);
+    bool                            SaveToStream(MemWriteStream& stream);
+    bool                            SaveToStream_PS2(MemWriteStream& stream);
 
-    size_t              GetNumTextures() const;
-    SH2Texture*         GetTexture(const size_t idx);
+    size_t                          GetNumTextures() const;
+    SH2Texture*                     GetTexture(const size_t idx);
 
-    void                SetVirtual(const bool isVirtual);
-    void                AddTexture(SH2Texture* texture);
+    void                            SetVirtual(const bool isVirtual);
+    void                            AddTexture(SH2Texture* texture);
 
-    const StringArray&  GetErrors() const;
-    const StringArray&  GetWarnings() const;
+    const StringArray&              GetErrors() const;
+    const StringArray&              GetWarnings() const;
 
-    bool                IsPS2File() const;
+    bool                            IsPS2File() const;
 
 private:
     SH2TextureContainerHeader       mHeader;

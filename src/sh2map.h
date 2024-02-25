@@ -29,16 +29,21 @@ public:
     bool    LoadFromFile(const fs::path& path);
     bool    LoadFromStream(MemStream& stream);
 
+    bool    LoadFromStream_PS2(MemStream& stream);
+
     bool    SaveToFile(const fs::path& path);
     bool    SaveToStream(MemWriteStream& stream);
+
+    bool    IsPS2() const;
 
     RefPtr<SH2TextureContainer> GetTexturesContainer();
 
 private:
     using SubData = std::pair<SH2MapSubDataHeader, void*>;
 
-    SH2MapHeader                 mHeader;
-    MyArray<SubData>             mSubDatas;
+    bool                        mIsPS2;
+    SH2MapHeader                mHeader;
+    MyArray<SubData>            mSubDatas;
     MyArray<RefPtr<SH2TextureContainer>> mTexturesContainers;
-    RefPtr<SH2TextureContainer>  mVirtualTexturesContainer;
+    RefPtr<SH2TextureContainer> mVirtualTexturesContainer;
 };

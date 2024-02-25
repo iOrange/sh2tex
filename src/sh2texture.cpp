@@ -24,6 +24,51 @@ enum PS2_PSM {
 };
 
 
+static void FromPS2Palette(uint8_t* palette) {
+    uint32_t* palette32 = rcast<uint32_t*>(palette);
+    for (size_t i = 0; i < 8; ++i) {
+        for (size_t j = 0; j < 8; ++j) {
+            std::swap(palette32[8 + i * 32 + j], palette32[16 + i * 32 + j]);
+        }
+    }
+
+    for (size_t i = 0; i < 1024; i += 4) {
+        std::swap(palette[i + 0], palette[i + 2]);
+
+        // weird PS2 alpha
+        const uint8_t a = palette[i + 3];
+        if (a > 128) {
+            assert(false);
+        } else if (a == 128) {
+            palette[i + 3] = 0xFF;
+        } else {
+            palette[i + 3] = (a << 1) | (a & 1);
+        }
+    }
+}
+
+static void ToPS2Palette(uint8_t* palette) {
+    for (size_t i = 0; i < 1024; i += 4) {
+        std::swap(palette[i + 0], palette[i + 2]);
+
+        // weird PS2 alpha
+        const uint8_t a = palette[i + 3];
+        if (a == 0xFF) {
+            palette[i + 3] = 0x80;
+        } else {
+            palette[i + 3] = a >> 1;
+        }
+    }
+
+    uint32_t* palette32 = rcast<uint32_t*>(palette);
+    for (size_t i = 0; i < 8; ++i) {
+        for (size_t j = 0; j < 8; ++j) {
+            std::swap(palette32[8 + i * 32 + j], palette32[16 + i * 32 + j]);
+        }
+    }
+}
+
+
 #define merror(str)     mErrors.push_back(str)
 #define mwarning(str)   mWarnings.push_back(str)
 
@@ -51,7 +96,6 @@ bool SH2Texture::LoadFromStream(MemStream& stream) {
     stream.RewindBytes(sizeof(mHeader_PS2));
 
     if (mHeader_PS2.marker == kSpriteMarker_PS2) {
-        mIsPS2File = true;
         return this->LoadFromStream_PS2(stream);
     }
 
@@ -109,18 +153,28 @@ bool SH2Texture::LoadFromStream(MemStream& stream) {
 extern void writeTexPSMCT32(int dbp, int dbw, int dsax, int dsay, int rrw, int rrh, void* data);
 extern void readTexPSMT8(int dbp, int dbw, int dsax, int dsay, int rrw, int rrh, void* data);
 
+// https://youtu.be/LbcZCEAN1nY
+
 bool SH2Texture::LoadFromStream_PS2(MemStream& stream) {
+    mIsPS2File = true;
+
     const size_t startOffset = stream.GetCursor();
 
     stream.ReadStruct(mHeader_PS2);
 
     mFormat = scast<SH2Texture::Format>(mHeader_PS2.format);
+
+    // TODO: add support for more PS2 formats (4bit paletted ???)
+    if (mFormat != SH2Texture::Format::Paletted && mFormat != SH2Texture::Format::RGBX8 && mFormat != SH2Texture::Format::RGBA8) {
+        return false;
+    }
+
     mOriginalDataSize = mHeader_PS2.dataSize;
     const uint32_t expectedDataSize = this->CalculateDataSize();
 
     const size_t pixelsOffset = mHeader_PS2.dataSize2 - mHeader_PS2.dataSize;
 
-    const bool bloatedPalette = (mHeader_PS2.isCompressed == 0x50);
+    const bool bloatedPalette = (mHeader_PS2.isCompressed != 0);
 
     stream.SetCursor(startOffset + pixelsOffset);
     mData.resize(expectedDataSize);
@@ -130,27 +184,9 @@ bool SH2Texture::LoadFromStream_PS2(MemStream& stream) {
         stream.ReadStruct(mPaletteHeader_PS2);
 
         mPalette.resize(256 * 4);
-        if (mPaletteHeader_PS2.paletteDataSize == 1024) {
-            assert(!bloatedPalette);
-            stream.ReadToBuffer(mPalette.data(), mPalette.size());
-        } else {
-            assert(bloatedPalette);
-#if 0
-            // todo: figure this shit out! hardcoded for now
-            for (size_t i = 0; i < 16; ++i) {
-                stream.ReadToBuffer(mPalette.data() + i * 64, 64);
-                stream.SkipBytes(256 - 64);
-            }
-#else
-            const size_t blockSize = mPaletteHeader_PS2.numColors * 4;
-            const size_t numBlocks = mPaletteHeader_PS2.paletteDataSize / blockSize;
-            const size_t usefulBlocks = 1024 / mPaletteHeader_PS2.readSize;
-            for (size_t i = 0; i < usefulBlocks; ++i) {
-                stream.ReadToBuffer(mPalette.data() + i * mPaletteHeader_PS2.readSize, mPaletteHeader_PS2.readSize);
-                stream.SkipBytes(blockSize - mPaletteHeader_PS2.readSize);
-            }
-#endif
-        }
+
+        mPalettePS2.resize(mPaletteHeader_PS2.paletteDataSize);
+        stream.ReadToBuffer(mPalettePS2.data(), mPalettePS2.size());
 
         int ww = this->GetWidth();
         int hh = this->GetHeight();
@@ -160,26 +196,8 @@ bool SH2Texture::LoadFromStream_PS2(MemStream& stream) {
         writeTexPSMCT32(0, rrw >> 6, 0, 0, rrw, rrh, mData.data());
         readTexPSMT8(0, ww >> 6, 0, 0, ww, this->GetHeight(), mData.data());
 
-        uint32_t* palette = rcast<uint32_t*>(mPalette.data());
-        for (size_t i = 0; i < 8; ++i) {
-            for (size_t j = 0; j < 8; ++j) {
-                std::swap(palette[8 + i * 32 + j], palette[16 + i * 32 + j]);
-            }
-        }
-
-        for (size_t i = 0; i < mPalette.size(); i += 4) {
-            std::swap(mPalette[i + 0], mPalette[i + 2]);
-
-            // weird PS2 alpha
-            const uint8_t a = mPalette[i + 3];
-            if (a > 128) {
-                assert(false);
-            } else if (a == 128) {
-                mPalette[i + 3] = 0xFF;
-            } else {
-                mPalette[i + 3] = (a << 1) | (a & 1);
-            }
-        }
+        mPaletteIdx = ~size_t(0);
+        this->SetCurrentPaletteIdx(0);
     } else {
         for (size_t i = 0; i < mData.size(); i += 4) {
             std::swap(mData[i + 0], mData[i + 2]);
@@ -280,46 +298,9 @@ bool SH2Texture::SaveToStream_PS2(MemWriteStream& stream) {
 
     stream.Write(ps2Image.data(), ps2Image.size());
 
-    // oh god please help me!
     if (mFormat == Format::Paletted) {
         stream.Write(mPaletteHeader_PS2);
-
-        BytesArray ps2Palette = mPalette;
-
-        for (size_t i = 0; i < ps2Palette.size(); i += 4) {
-            std::swap(ps2Palette[i + 0], ps2Palette[i + 2]);
-
-            // weird PS2 alpha
-            const uint8_t a = ps2Palette[i + 3];
-            if (a == 0xFF) {
-                ps2Palette[i + 3] = 0x80;
-            } else {
-                ps2Palette[i + 3] = a >> 1;
-            }
-        }
-
-        uint32_t* palette = rcast<uint32_t*>(ps2Palette.data());
-        for (size_t i = 0; i < 8; ++i) {
-            for (size_t j = 0; j < 8; ++j) {
-                std::swap(palette[8 + i * 32 + j], palette[16 + i * 32 + j]);
-            }
-        }
-
-        if (mPaletteHeader_PS2.paletteDataSize == 1024) {
-            stream.Write(ps2Palette.data(), ps2Palette.size());
-        } else {
-            const size_t blockSize = mPaletteHeader_PS2.numColors * 4;
-            const size_t numBlocks = mPaletteHeader_PS2.paletteDataSize / blockSize;
-            const size_t usefulBlocks = 1024 / mPaletteHeader_PS2.readSize;
-            for (size_t i = 0; i < usefulBlocks; ++i) {
-                stream.Write(ps2Palette.data() + i * mPaletteHeader_PS2.readSize, mPaletteHeader_PS2.readSize);
-                stream.WriteDupByte(0, blockSize - mPaletteHeader_PS2.readSize);
-            }
-
-            if (usefulBlocks < numBlocks) {
-                stream.WriteDupByte(0, (numBlocks - usefulBlocks) * blockSize);
-            }
-        }
+        stream.Write(mPalettePS2.data(), mPalettePS2.size());
     }
 
     return true;
@@ -349,12 +330,69 @@ const uint8_t* SH2Texture::GetPalette() const {
     return mPalette.data();
 }
 
+// PS2 specific palette funcs
+size_t SH2Texture::GetPalettesCount() const {
+    return mIsPS2File ? mPaletteHeader_PS2.palettesCount : 1;
+}
+
+size_t SH2Texture::GetCurrentPaletteIdx() const {
+    return mIsPS2File ? mPaletteIdx : 0;
+}
+
+void SH2Texture::SetCurrentPaletteIdx(const size_t idx) {
+    if (mIsPS2File && idx < this->GetPalettesCount()) {
+        if (idx != mPaletteIdx) {
+            mPaletteIdx = idx;
+
+            if (mPalettePS2.size() == mPalette.size()) {
+                std::memcpy(mPalette.data(), mPalettePS2.data(), mPalettePS2.size());
+            } else {
+                // each page is 256 bytes, so can hold 4 palette blocks
+                const size_t bigOffset = (idx / 4) * 4096;
+                const size_t smallOffset = (idx % 4) * 64;
+
+                uint8_t* dst = mPalette.data();
+                const uint8_t* src = mPalettePS2.data() + bigOffset + smallOffset;
+                for (size_t i = 0; i < 16; ++i) {
+                    std::memcpy(dst, src, 64);
+                    dst += 64;
+                    src += 256;
+                }
+            }
+
+            FromPS2Palette(mPalette.data());
+        }
+    }
+}
+
+void SH2Texture::ImportPalette() {
+    BytesArray ps2Palette = mPalette;
+    ToPS2Palette(ps2Palette.data());
+
+    if (mPalettePS2.size() == ps2Palette.size()) {
+        std::memcpy(mPalettePS2.data(), ps2Palette.data(), mPalettePS2.size());
+    } else {
+        // each page is 256 bytes, so can hold 4 palette blocks
+        const size_t bigOffset = (mPaletteIdx / 4) * 4096;
+        const size_t smallOffset = (mPaletteIdx % 4) * 64;
+
+        uint8_t* dst = mPalettePS2.data() + bigOffset + smallOffset;
+        const uint8_t* src = mPalette.data();
+        for (size_t i = 0; i < 16; ++i) {
+            std::memcpy(dst, src, 64);
+            dst += 256;
+            src += 64;
+        }
+    }
+}
+
 bool SH2Texture::IsCompressed() const {
-    return mFormat == Format::DXT1 ||
-           mFormat == Format::DXT2 ||
-           mFormat == Format::DXT3 ||
-           mFormat == Format::DXT4 ||
-           mFormat == Format::DXT5;
+    return mIsPS2File == false &&
+           ( mFormat == Format::DXT1 ||
+             mFormat == Format::DXT2 ||
+             mFormat == Format::DXT3 ||
+             mFormat == Format::DXT4 ||
+             mFormat == Format::DXT5  );
 }
 
 bool SH2Texture::IsPremultiplied() const {
@@ -436,7 +474,9 @@ bool SH2Texture::Replace_PS2(const uint8_t* data, const uint8_t* palette) {
         }
 
         std::memcpy(mData.data(), data, width * height);
-        std::memcpy(mPalette.data(), palette, 1024);
+        std::memcpy(mPalette.data(), palette, mPalette.size());
+
+        this->ImportPalette();
     } else {
         return false;
     }
