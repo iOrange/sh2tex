@@ -23,6 +23,13 @@ enum PS2_PSM {
     PSMT4HH  = 44,      // 4 - bit indexed, where the bits 4 - 7 are evaluated and the rest discarded.
 };
 
+static uint8_t FromPS2Alpha(const uint8_t ps2Alpha) {
+    return (ps2Alpha == 0x80) ? 0xFF : ((ps2Alpha << 1) | (ps2Alpha & 1));
+}
+
+static uint8_t ToPS2Alpha(const uint8_t alpha) {
+    return (alpha == 0xFF) ? 0x80 : (alpha >> 1);
+}
 
 static void FromPS2Palette(uint8_t* palette) {
     uint32_t* palette32 = rcast<uint32_t*>(palette);
@@ -34,30 +41,16 @@ static void FromPS2Palette(uint8_t* palette) {
 
     for (size_t i = 0; i < 1024; i += 4) {
         std::swap(palette[i + 0], palette[i + 2]);
-
         // weird PS2 alpha
-        const uint8_t a = palette[i + 3];
-        if (a > 128) {
-            assert(false);
-        } else if (a == 128) {
-            palette[i + 3] = 0xFF;
-        } else {
-            palette[i + 3] = (a << 1) | (a & 1);
-        }
+        palette[i + 3] = FromPS2Alpha(palette[i + 3]);
     }
 }
 
 static void ToPS2Palette(uint8_t* palette) {
     for (size_t i = 0; i < 1024; i += 4) {
         std::swap(palette[i + 0], palette[i + 2]);
-
         // weird PS2 alpha
-        const uint8_t a = palette[i + 3];
-        if (a == 0xFF) {
-            palette[i + 3] = 0x80;
-        } else {
-            palette[i + 3] = a >> 1;
-        }
+        palette[i + 3] = ToPS2Alpha(palette[i + 3]);
     }
 
     uint32_t* palette32 = rcast<uint32_t*>(palette);
@@ -81,6 +74,7 @@ SH2Texture::SH2Texture()
     , mIsPS2File(false)
     , mHeader_PS2{}
     , mPaletteHeader_PS2{}
+    , mPaletteIdx(0)
 {
 }
 SH2Texture::~SH2Texture() {
@@ -152,6 +146,7 @@ bool SH2Texture::LoadFromStream(MemStream& stream) {
 // swizzling info - https://ps2linux.no-ip.info/playstation2-linux.com/download/ezswizzle/TextureSwizzling.pdf
 extern void writeTexPSMCT32(int dbp, int dbw, int dsax, int dsay, int rrw, int rrh, void* data);
 extern void readTexPSMT8(int dbp, int dbw, int dsax, int dsay, int rrw, int rrh, void* data);
+extern void readTexPSMT4(int dbp, int dbw, int dsax, int dsay, int rrw, int rrh, void* data);
 
 // https://youtu.be/LbcZCEAN1nY
 
@@ -164,11 +159,6 @@ bool SH2Texture::LoadFromStream_PS2(MemStream& stream) {
 
     mFormat = scast<SH2Texture::Format>(mHeader_PS2.format);
 
-    // TODO: add support for more PS2 formats (4bit paletted ???)
-    if (mFormat != SH2Texture::Format::Paletted && mFormat != SH2Texture::Format::RGBX8 && mFormat != SH2Texture::Format::RGBA8) {
-        return false;
-    }
-
     mOriginalDataSize = mHeader_PS2.dataSize;
     const uint32_t expectedDataSize = this->CalculateDataSize();
 
@@ -180,7 +170,7 @@ bool SH2Texture::LoadFromStream_PS2(MemStream& stream) {
     mData.resize(expectedDataSize);
     stream.ReadToBuffer(mData.data(), mData.size());
 
-    if (mFormat == Format::Paletted) {
+    if (mFormat == Format::Paletted || mFormat == Format::Paletted4) {
         stream.ReadStruct(mPaletteHeader_PS2);
 
         mPalette.resize(256 * 4);
@@ -188,29 +178,52 @@ bool SH2Texture::LoadFromStream_PS2(MemStream& stream) {
         mPalettePS2.resize(mPaletteHeader_PS2.paletteDataSize);
         stream.ReadToBuffer(mPalettePS2.data(), mPalettePS2.size());
 
-        int ww = this->GetWidth();
-        int hh = this->GetHeight();
-        int rrw = ww >> 1;
-        int rrh = hh >> 1;
+        const int ww = this->GetWidth();
+        const int hh = this->GetHeight();
+        const int rrw = ww >> 1;
+        const int rrh = (mFormat == Format::Paletted) ? (hh >> 1) : (hh >> 2);
 
         writeTexPSMCT32(0, rrw >> 6, 0, 0, rrw, rrh, mData.data());
-        readTexPSMT8(0, ww >> 6, 0, 0, ww, this->GetHeight(), mData.data());
+        if (mFormat == Format::Paletted) {
+            readTexPSMT8(0, ww >> 6, 0, 0, ww, this->GetHeight(), mData.data());
+        } else {
+            readTexPSMT4(0, ww >> 6, 0, 0, ww, this->GetHeight(), mData.data());
+
+            // "eplode" 4bit image to 8bit
+            const size_t bitsPerLine = mHeader_PS2.width * 4;
+            const size_t bytesPerLine = (bitsPerLine >> 3) + ((bitsPerLine % 8 == 0) ? 0 : 1);
+
+            BytesArray exploded(ww * hh);
+            const uint8_t* src = mData.data();
+            uint8_t* dst = exploded.data();
+            for (size_t y = 0; y < mHeader_PS2.height; ++y) {
+                const uint8_t* ptr4 = src + y * bytesPerLine;
+                for (size_t x = 0; x < (mHeader_PS2.width - 1); x += 2) {
+                    dst[0] = (ptr4[0] & 0xF);
+                    dst[1] = ((ptr4[0] >> 4) & 0xF);
+
+                    ptr4 += 1;
+                    dst += 2;
+                }
+
+                if (mHeader_PS2.width & 1) {
+                    dst[0] = (ptr4[0] & 0xF);
+
+                    ++ptr4;
+                    ++dst;
+                }
+            }
+
+            mData = exploded;
+        }
 
         mPaletteIdx = ~size_t(0);
         this->SetCurrentPaletteIdx(0);
     } else {
         for (size_t i = 0; i < mData.size(); i += 4) {
             std::swap(mData[i + 0], mData[i + 2]);
-
             // weird PS2 alpha
-            const uint8_t a = mData[i + 3];
-            if (a > 128) {
-                assert(false);
-            } else if (a == 128) {
-                mData[i + 3] = 0xFF;
-            } else {
-                mData[i + 3] = (a << 1) | (a & 1);
-            }
+            mData[i + 3] = FromPS2Alpha(mData[i + 3]);
         }
     }
 
@@ -264,6 +277,7 @@ bool SH2Texture::SaveToStream(MemWriteStream& stream) {
 // swizzling info - https://ps2linux.no-ip.info/playstation2-linux.com/download/ezswizzle/TextureSwizzling.pdf
 extern void readTexPSMCT32(int dbp, int dbw, int dsax, int dsay, int rrw, int rrh, void* data);
 extern void writeTexPSMT8(int dbp, int dbw, int dsax, int dsay, int rrw, int rrh, void* data);
+extern void writeTexPSMT4(int dbp, int dbw, int dsax, int dsay, int rrw, int rrh, void* data);
 
 bool SH2Texture::SaveToStream_PS2(MemWriteStream& stream) {
     stream.Write(mHeader_PS2);
@@ -277,22 +291,20 @@ bool SH2Texture::SaveToStream_PS2(MemWriteStream& stream) {
     if (mFormat == Format::RGBX8) {
         for (size_t i = 0; i < ps2Image.size(); i += 4) {
             std::swap(ps2Image[i + 0], ps2Image[i + 2]);
-
             // weird PS2 alpha
-            const uint8_t a = mData[i + 3];
-            if (a == 0xFF) {
-                ps2Image[i + 3] = 0x80;
-            } else {
-                ps2Image[i + 3] = a >> 1;
-            }
+            ps2Image[i + 3] = ToPS2Alpha(mData[i + 3]);
         }
     } else { // paletted
-        int ww = this->GetWidth();
-        int hh = this->GetHeight();
-        int rrw = ww >> 1;
-        int rrh = hh >> 1;
+        const int ww = this->GetWidth();
+        const int hh = this->GetHeight();
+        const int rrw = ww >> 1;
+        const int rrh = (mFormat == Format::Paletted) ? (hh >> 1) : (hh >> 2);
 
-        writeTexPSMT8(0, ww >> 6, 0, 0, ww, this->GetHeight(), ps2Image.data());
+        if (mFormat == Format::Paletted) {
+            writeTexPSMT8(0, ww >> 6, 0, 0, ww, this->GetHeight(), ps2Image.data());
+        } else {
+            writeTexPSMT4(0, ww >> 6, 0, 0, ww, this->GetHeight(), ps2Image.data());
+        }
         readTexPSMCT32(0, rrw >> 6, 0, 0, rrw, rrh, ps2Image.data());
     }
 
@@ -344,18 +356,24 @@ void SH2Texture::SetCurrentPaletteIdx(const size_t idx) {
         if (idx != mPaletteIdx) {
             mPaletteIdx = idx;
 
-            if (mPalettePS2.size() == mPalette.size()) {
+            const bool is4Bit = (this->GetFormat() == SH2Texture::Format::Paletted4);
+            const size_t paletteEntries = is4Bit ? 16 : 256;
+            const size_t paletteSize = paletteEntries * 4;
+            const size_t paletteBlockSize = is4Bit ? 32 : 64;
+            const size_t numPaletteBlocks = 256 / paletteBlockSize;
+            const size_t numBlocksPerPalette = paletteSize / paletteBlockSize;
+
+            if (mPalettePS2.size() == paletteSize) {
                 std::memcpy(mPalette.data(), mPalettePS2.data(), mPalettePS2.size());
             } else {
-                // each page is 256 bytes, so can hold 4 palette blocks
-                const size_t bigOffset = (idx / 4) * 4096;
-                const size_t smallOffset = (idx % 4) * 64;
+                const size_t bigOffset = (idx / numPaletteBlocks) * 4096;
+                const size_t smallOffset = (idx % numPaletteBlocks) * paletteBlockSize;
 
                 uint8_t* dst = mPalette.data();
                 const uint8_t* src = mPalettePS2.data() + bigOffset + smallOffset;
-                for (size_t i = 0; i < 16; ++i) {
-                    std::memcpy(dst, src, 64);
-                    dst += 64;
+                for (size_t i = 0; i < numBlocksPerPalette; ++i) {
+                    std::memcpy(dst, src, paletteBlockSize);
+                    dst += paletteBlockSize;
                     src += 256;
                 }
             }
@@ -369,19 +387,25 @@ void SH2Texture::ImportPalette() {
     BytesArray ps2Palette = mPalette;
     ToPS2Palette(ps2Palette.data());
 
-    if (mPalettePS2.size() == ps2Palette.size()) {
+    const bool is4Bit = (this->GetFormat() == SH2Texture::Format::Paletted4);
+    const size_t paletteEntries = is4Bit ? 16 : 256;
+    const size_t paletteSize = paletteEntries * 4;
+    const size_t paletteBlockSize = is4Bit ? 32 : 64;
+    const size_t numPaletteBlocks = 256 / paletteBlockSize;
+    const size_t numBlocksPerPalette = paletteSize / paletteBlockSize;
+
+    if (mPalettePS2.size() == paletteSize) {
         std::memcpy(mPalettePS2.data(), ps2Palette.data(), mPalettePS2.size());
     } else {
-        // each page is 256 bytes, so can hold 4 palette blocks
-        const size_t bigOffset = (mPaletteIdx / 4) * 4096;
-        const size_t smallOffset = (mPaletteIdx % 4) * 64;
+        const size_t bigOffset = (mPaletteIdx / numPaletteBlocks) * 4096;
+        const size_t smallOffset = (mPaletteIdx % numPaletteBlocks) * paletteBlockSize;
 
         uint8_t* dst = mPalettePS2.data() + bigOffset + smallOffset;
         const uint8_t* src = mPalette.data();
-        for (size_t i = 0; i < 16; ++i) {
-            std::memcpy(dst, src, 64);
+        for (size_t i = 0; i < numBlocksPerPalette; ++i) {
+            std::memcpy(dst, src, paletteBlockSize);
             dst += 256;
-            src += 64;
+            src += paletteBlockSize;
         }
     }
 }
@@ -419,6 +443,10 @@ uint32_t SH2Texture::CalculateDataSize() const {
         return (mFormat == Format::DXT1) ? BCDEC_BC1_COMPRESSED_SIZE(width, height) : BCDEC_BC3_COMPRESSED_SIZE(width, height);
     } else if (mFormat == Format::Paletted) {
         return width * height;
+    } else if (mFormat == Format::Paletted4) {
+        const uint32_t bitsPerLine = width * 4;
+        const uint32_t bytesPerLine = (bitsPerLine >> 3) + ((bitsPerLine % 8 == 0) ? 0 : 1);
+        return bytesPerLine * height;
     } else /*if (mFormat == Format::RGBX8 || mFormat == Format::RGBA8)*/ {
         return width * height * 4;
     }

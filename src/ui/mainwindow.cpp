@@ -45,14 +45,14 @@ static const QString kDarkThemeValue("DarkThemeEnabled");
 
 constexpr size_t kMaxRecentTextures = 10;
 
-static QString SH2FormatToString(const SH2Texture::Format format) {
+static QString SH2FormatToString(const SH2Texture::Format format, const bool isPS2) {
     switch (format) {
         case SH2Texture::Format::DXT1: return QString("DXT1");
         case SH2Texture::Format::DXT2: return QString("DXT2");
         case SH2Texture::Format::DXT3: return QString("DXT3");
         case SH2Texture::Format::DXT4: return QString("DXT4");
-        case SH2Texture::Format::DXT5: return QString("DXT5");
-        case SH2Texture::Format::Paletted: return QString("Paletted");
+        case SH2Texture::Format::DXT5: return isPS2 ? QString("Paletted4") : QString("DXT5");
+        case SH2Texture::Format::Paletted: return QString("Paletted8");
         case SH2Texture::Format::RGBX8: return QString("RGBX8");
         case SH2Texture::Format::RGBA8: return QString("RGBA8");
         default: return QString();
@@ -207,7 +207,7 @@ void MainWindow::DecompressTexture(const SH2Texture* texture, BytesArray& output
                 }
             }
         }
-    } else if (format == SH2Texture::Format::Paletted) {
+    } else if (format == SH2Texture::Format::Paletted || format == SH2Texture::Format::Paletted4) {
         const uint8_t* indices = texture->GetData();
         const uint32_t* palette = rcast<const uint32_t*>(texture->GetPalette());
         uint32_t* dst = rcast<uint32_t*>(output.data());
@@ -349,7 +349,7 @@ void MainWindow::OnTextureLoaded(const int idx) {
 
         QImage icon = QImage(decompressed.data(), width, height, width * 4, qfmt).scaled(QSize(128, 128), Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
 
-        QString tooltip = QString("id: %1\n%2x%3\n%4").arg(texture->GetID()).arg(width).arg(height).arg(SH2FormatToString(texture->GetFormat()));
+        QString tooltip = QString("id: %1\n%2x%3\n%4").arg(texture->GetID()).arg(width).arg(height).arg(SH2FormatToString(texture->GetFormat(), texture->IsPS2File()));
 
         QListWidgetItem* item = new QListWidgetItem();
         item->setText(QString("texture %1").arg(i));
@@ -454,7 +454,7 @@ void MainWindow::UpdateStatusBar() {
             const uint32_t width = texture->GetWidth();
             const uint32_t height = texture->GetHeight();
 
-            QString formatName = SH2FormatToString(texture->GetFormat());
+            QString formatName = SH2FormatToString(texture->GetFormat(), texture->IsPS2File());
 
             const int zoom = ui->imagePanel->GetZoom();
 
@@ -491,7 +491,7 @@ void MainWindow::ExportTexture(const SH2Texture* texture, const fs::path& path) 
             dds.SetFormat(32);
             const size_t dataSize = width * height * 4;
             dds.SetData(texture->GetData(), dataSize);
-        } else if (texFormat == SH2Texture::Format::Paletted) {
+        } else if (texFormat == SH2Texture::Format::Paletted || (texture->IsPS2File() && texFormat == SH2Texture::Format::Paletted4)) {
             BytesArray unpaletted(width * height * 4);
             this->DecompressTexture(texture, unpaletted, true);
             dds.SetData(unpaletted.data(), unpaletted.size());
@@ -526,7 +526,7 @@ void MainWindow::ExportTexture(const SH2Texture* texture, const fs::path& path) 
             decompressed.resize(width * height * 4);
             this->DecompressTexture(texture, decompressed, false);
             qimg = MakeRefPtr<QImage>(decompressed.data(), width, height, QImage::Format_RGBA8888);
-        } else if (texFormat == SH2Texture::Format::Paletted) {
+        } else if (texFormat == SH2Texture::Format::Paletted || (texture->IsPS2File() && texFormat == SH2Texture::Format::Paletted4)) {
             qimg = MakeRefPtr<QImage>(texture->GetData(), width, height, QImage::Format_Indexed8);
             const uint8_t* palette = texture->GetPalette();
             QList<uint32_t> imgPal(256);
@@ -820,7 +820,7 @@ void MainWindow::on_listTextures_itemSelectionChanged() {
 
         this->SetTextureToImagePanel(texture);
 
-        QString formatName = SH2FormatToString(texture->GetFormat());
+        QString formatName = SH2FormatToString(texture->GetFormat(), texture->IsPS2File());
         const uint32_t orgDataSize = texture->GetOriginalDataSize();
         const uint32_t dataSize = texture->CalculateDataSize();
 

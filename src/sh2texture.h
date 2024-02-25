@@ -137,8 +137,6 @@ private:
     uint32_t                    mOriginalDataSize;  // cached from sprite that has data
     BytesArray                  mData;
     BytesArray                  mPalette;
-    BytesArray                  mPalettePS2;        // this will hold all the PS2 palette bytes
-    size_t                      mPaletteIdx;        // PS2 only
 
     StringArray                 mErrors;
     StringArray                 mWarnings;
@@ -147,6 +145,8 @@ private:
     bool                        mIsPS2File;
     SH2SpriteHeader             mHeader_PS2;
     SH2TexturePaletteHeader_SH2 mPaletteHeader_PS2;
+    BytesArray                  mPalettePS2;        // this will hold all the PS2 palette bytes
+    size_t                      mPaletteIdx;        // PS2 only
 };
 
 class SH2TextureContainer {
